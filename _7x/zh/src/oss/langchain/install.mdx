@@ -3,11 +3,10 @@ title: Install LangChain
 sidebarTitle: Install
 ---
 
-
-
-To install the LangChain package:
+要安装 LangChain 包：
 
 :::python
+
 <CodeGroup>
     ```bash pip
     pip install -U langchain
@@ -16,14 +15,15 @@ To install the LangChain package:
     ```bash uv
     uv add langchain
     ```
+
 </CodeGroup>
 :::
 
 :::js
-    <CodeGroup>
-    ```bash npm
+<CodeGroup>
+`bash npm
     npm install langchain @langchain/core
-    ```
+    `
 
     ```bash pnpm
     pnpm add langchain @langchain/core
@@ -37,11 +37,13 @@ To install the LangChain package:
     bun add langchain @langchain/core
     ```
     </CodeGroup>
+
 :::
 
-LangChain provides integrations to hundreds of LLMs and thousands of other integrations. These live in independent provider packages. For example:
+LangChain 提供了与数百个 LLM 和数千个其他组件的集成。这些功能存在于独立的供应商包中。例如：
 
 :::python
+
 <CodeGroup>
     ```bash pip
     # Installing the OpenAI integration
@@ -57,11 +59,13 @@ LangChain provides integrations to hundreds of LLMs and thousands of other integ
     # Installing the Anthropic integration
     uv add langchain-anthropic
     ```
+
 </CodeGroup>
 
 :::
 
 :::js
+
 <CodeGroup>
     ```bash npm
     # Installing the OpenAI integration
@@ -90,9 +94,10 @@ LangChain provides integrations to hundreds of LLMs and thousands of other integ
     # Installing the Anthropic integration
     bun add @langchain/anthropic
     ```
+
 </CodeGroup>
 :::
 
 <Tip>
-See the [Integrations tab](/oss/integrations/providers/overview) for a full list of available integrations.
+查看 [集成标签页](/oss/integrations/providers/overview) 获取完整的可用集成列表。
 </Tip>

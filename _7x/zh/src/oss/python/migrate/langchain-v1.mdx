@@ -1,59 +1,59 @@
 ---
-title: LangChain v1 migration guide
-sidebarTitle: Migration guide
+title: LangChain v1 迁移指南
+sidebarTitle: 迁移指南
 ---
 
-This guide outlines the major changes between [LangChain v1](/oss/releases/langchain-v1) and previous versions.
+本指南概述了 [LangChain v1](/oss/releases/langchain-v1) 与之前版本之间的主要变更。
 
-## Simplified package
+## 简化包
 
-The `langchain` package namespace has been significantly reduced in v1 to focus on essential building blocks for agents. The streamlined package makes it easier to discover and use the core functionality.
+在 v1 版本中，`langchain` 包的命名空间已显著缩减，专注于智能体的基本构建模块。简化的包使得发现和使用核心功能更加容易。
 
-### Namespace
+### 命名空间
 
-| Module                  | What's available                               | Notes                             |
+| 模块                  | 可用内容                               | 说明                             |
 |-------------------------|------------------------------------------------|-----------------------------------|
-| @[`langchain.agents`]      | @[`create_agent`], @[`AgentState`]                   | Core agent creation functionality |
-| @[`langchain.messages`]    | Message types, @[content blocks][ContentBlock], @[`trim_messages`] | Re-exported from `langchain-core` |
-| @[`langchain.tools`]       | @[`@tool`], @[`BaseTool`], injection helpers          | Re-exported from `langchain-core` |
-| @[`langchain.chat_models`] | @[`init_chat_model`], @[`BaseChatModel`]             | Unified model initialization      |
-| @[`langchain.embeddings`]  | @[`init_embeddings`], @[`Embeddings`]                | Embedding models                  |
+| @[`langchain.agents`]      | @[`create_agent`], @[`AgentState`]                   | 核心智能体创建功能 |
+| @[`langchain.messages`]    | 消息类型, @[内容块][ContentBlock], @[`trim_messages`] | 从 `langchain-core` 重新导出 |
+| @[`langchain.tools`]       | @[`@tool`], @[`BaseTool`], 注入辅助工具          | 从 `langchain-core` 重新导出 |
+| @[`langchain.chat_models`] | @[`init_chat_model`], @[`BaseChatModel`]             | 统一的模型初始化      |
+| @[`langchain.embeddings`]  | @[`init_embeddings`], @[`Embeddings`]                | 嵌入模型                  |
 
 ### `langchain-classic`
 
-If you were using any of the following from the `langchain` package, you'll need to install [`langchain-classic`](https://pypi.org/project/langchain-classic/) and update your imports:
+如果您之前使用过 `langchain` 包中的以下任何内容，您需要安装 [`langchain-classic`](https://pypi.org/project/langchain-classic/) 并更新您的导入：
 
-- Legacy chains (`LLMChain`, `ConversationChain`, etc.)
-- Retrievers (e.g. `MultiQueryRetriever` or anything from the previous `langchain.retrievers` module)
-- The indexing API
-- The hub module (for managing prompts programmatically)
-- Embeddings modules (e.g. `CacheBackedEmbeddings` and community embeddings)
-- [`langchain-community`](https://pypi.org/project/langchain-community) re-exports
-- Other deprecated functionality
+- 旧版链（`LLMChain`, `ConversationChain` 等）
+- 检索器（例如 `MultiQueryRetriever` 或之前 `langchain.retrievers` 模块中的任何内容）
+- 索引 API
+- Hub 模块（用于以编程方式管理提示）
+- 嵌入模块（例如 `CacheBackedEmbeddings` 和社区嵌入）
+- [`langchain-community`](https://pypi.org/project/langchain-community) 重新导出的内容
+- 其他已弃用的功能
 
 <CodeGroup>
-    ```python v1 (new)
-    # Chains
+    ```python v1 (新)
+    # 链
     from langchain_classic.chains import LLMChain
 
-    # Retrievers
+    # 检索器
     from langchain_classic.retrievers import ...
 
-    # Indexing
+    # 索引
     from langchain_classic.indexes import ...
 
     # Hub
     from langchain_classic import hub
     ```
 
-    ```python v0 (old)
-    # Chains
+    ```python v0 (旧)
+    # 链
     from langchain.chains import LLMChain
 
-    # Retrievers
+    # 检索器
     from langchain.retrievers import ...
 
-    # Indexing
+    # 索引
     from langchain.indexes import ...
 
     # Hub
@@ -61,7 +61,7 @@ If you were using any of the following from the `langchain` package, you'll need
     ```
 </CodeGroup>
 
-Install with:
+安装方式：
 
 <CodeGroup>
 ```bash pip
@@ -75,46 +75,46 @@ uv add langchain-classic
 
 ---
 
-## Migrate to `create_agent`
+## 迁移到 `create_agent`
 
-Prior to v1.0, we recommended using @[`langgraph.prebuilt.create_react_agent`][create_react_agent] to build agents. Now, we recommend you use @[`langchain.agents.create_agent`][create_agent] to build agents.
+在 v1.0 之前，我们推荐使用 @[`langgraph.prebuilt.create_react_agent`][create_react_agent] 来构建智能体。现在，我们推荐您使用 @[`langchain.agents.create_agent`][create_agent] 来构建智能体。
 
-The table below outlines what functionality has changed from @[`create_react_agent`] to @[`create_agent`]:
+下表概述了从 @[`create_react_agent`] 到 @[`create_agent`] 的功能变更：
 
-| Section | TL;DR - What's changed |
+| 部分 | TL;DR - 变更内容 |
 |---------|--------------|
-| [Import path](#import-path) | Package moved from `langgraph.prebuilt` to `langchain.agents` |
-| [Prompts](#prompts) | Parameter renamed to @[`system_prompt`], dynamic prompts use middleware |
-| [Pre-model hook](#pre-model-hook) | Replaced by middleware with `before_model` method |
-| [Post-model hook](#post-model-hook) | Replaced by middleware with `after_model` method |
-| [Custom state](#custom-state) | `TypedDict` only, can be defined via @[`state_schema`] or middleware |
-| [Model](#model) | Dynamic selection via middleware, pre-bound models not supported |
-| [Tools](#tools) | Tool error handling moved to middleware with `wrap_tool_call` |
-| [Structured output](#structured-output) | prompted output removed, use `ToolStrategy`/`ProviderStrategy` |
-| [Streaming node name](#streaming-node-name-rename) | Node name changed from `"agent"` to `"model"` |
-| [Runtime context](#runtime-context) | Dependency injection via `context` argument instead of `config["configurable"]` |
-| [Namespace](#simplified-namespace) | Streamlined to focus on agent building blocks, legacy code moved to `langchain-classic` |
+| [导入路径](#导入路径) | 包从 `langgraph.prebuilt` 移至 `langchain.agents` |
+| [提示](#提示) | 参数重命名为 @[`system_prompt`]，动态提示使用中间件 |
+| [模型前钩子](#模型前钩子) | 被带有 `before_model` 方法的中间件取代 |
+| [模型后钩子](#模型后钩子) | 被带有 `after_model` 方法的中间件取代 |
+| [自定义状态](#自定义状态) | 仅支持 `TypedDict`，可以通过 @[`state_schema`] 或中间件定义 |
+| [模型](#模型) | 通过中间件动态选择，不支持预绑定模型 |
+| [工具](#工具) | 工具错误处理移至带有 `wrap_tool_call` 的中间件 |
+| [结构化输出](#结构化输出) | 移除了提示输出，使用 `ToolStrategy`/`ProviderStrategy` |
+| [流式节点名称](#流式节点名称重命名) | 节点名称从 `"agent"` 改为 `"model"` |
+| [运行时上下文](#运行时上下文) | 通过 `context` 参数进行依赖注入，而非 `config["configurable"]` |
+| [命名空间](#简化命名空间) | 简化为专注于智能体构建模块，旧版代码移至 `langchain-classic` |
 
-### Import path
+### 导入路径
 
-The import path for the agent prebuilt has changed from `langgraph.prebuilt` to `langchain.agents`.
-The name of the function has changed from @[`create_react_agent`] to @[`create_agent`]:
+智能体预构建功能的导入路径已从 `langgraph.prebuilt` 更改为 `langchain.agents`。
+函数名称已从 @[`create_react_agent`] 更改为 @[`create_agent`]：
 
 ```python
 from langgraph.prebuilt import create_react_agent # [!code --]
 from langchain.agents import create_agent # [!code ++]
 ```
 
-For more information, see [Agents](/oss/langchain/agents).
+更多信息，请参阅 [智能体](/oss/langchain/agents)。
 
-### Prompts
+### 提示
 
-#### Static prompt rename
+#### 静态提示重命名
 
-The `prompt` parameter has been renamed to @[`system_prompt`]:
+`prompt` 参数已重命名为 @[`system_prompt`]：
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from langchain.agents import create_agent
 
 
@@ -124,7 +124,7 @@ agent = create_agent(
     system_prompt="You are a helpful assistant"  # [!code highlight]
 )
 ```
-```python v0 (old)
+```python v0 (旧)
 from langgraph.prebuilt import create_react_agent
 
 agent = create_react_agent(
@@ -135,12 +135,12 @@ agent = create_react_agent(
 ```
 </CodeGroup>
 
-#### `SystemMessage` to string
+#### `SystemMessage` 转为字符串
 
-If using @[`SystemMessage`] objects in the system prompt, extract the string content:
+如果在系统提示中使用 @[`SystemMessage`] 对象，请提取字符串内容：
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from langchain.agents import create_agent
 
 
@@ -150,7 +150,7 @@ agent = create_agent(
     system_prompt="You are a helpful assistant"  # [!code highlight]
 )
 ```
-```python v0 (old)
+```python v0 (旧)
 from langchain.messages import SystemMessage
 from langgraph.prebuilt import create_react_agent
 
@@ -162,12 +162,12 @@ agent = create_react_agent(
 ```
 </CodeGroup>
 
-#### Dynamic prompts
+#### 动态提示
 
-Dynamic prompts are a core context engineering pattern— they adapt what you tell the model based on the current conversation state. To do this, use the @[`@dynamic_prompt`] decorator:
+动态提示是一种核心的上下文工程模式——它们根据当前对话状态调整您告诉模型的内容。为此，请使用 @[`@dynamic_prompt`] 装饰器：
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from dataclasses import dataclass
 
 from langchain.agents import create_agent
@@ -204,14 +204,14 @@ agent = create_agent(
     context_schema=Context
 )
 
-# Use with context
+# 使用上下文
 agent.invoke(
     {"messages": [{"role": "user", "content": "Explain async programming"}]},
     context=Context(user_role="expert")
 )
 ```
 
-```python v0 (old)
+```python v0 (旧)
 from dataclasses import dataclass
 
 from langgraph.prebuilt import create_react_agent, AgentState
@@ -239,7 +239,7 @@ agent = create_react_agent(
     context_schema=Context
 )
 
-# Use with context
+# 使用上下文
 agent.invoke(
     {"messages": [{"role": "user", "content": "Explain async programming"}]},
     context=Context(user_role="expert")
@@ -248,21 +248,21 @@ agent.invoke(
 </CodeGroup>
 
 
-### Pre-model hook
+### 模型前钩子
 
-Pre-model hooks are now implemented as middleware with the `before_model` method.
-This new pattern is more extensible--you can define multiple middlewares to run before the model is called,
-reusing common patterns across different agents.
+模型前钩子现在通过带有 `before_model` 方法的中间件实现。
+这种新模式更具可扩展性——您可以在调用模型之前定义多个要运行的中间件，
+在不同的智能体中重用通用模式。
 
-Common use cases include:
-* Summarizing conversation history
-* Trimming messages
-* Input guardrails, like PII redaction
+常见用例包括：
+* 总结对话历史
+* 修剪消息
+* 输入护栏，如 PII 脱敏
 
-v1 now has summarization middleware as a built in option:
+v1 现在内置了摘要中间件作为可选功能：
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
 
@@ -278,7 +278,7 @@ agent = create_agent(
     ]  # [!code highlight]
 )
 ```
-```python v0 (old)
+```python v0 (旧)
 from langgraph.prebuilt import create_react_agent, AgentState
 
 def custom_summarization_function(state: AgentState):
@@ -293,20 +293,20 @@ agent = create_react_agent(
 ```
 </CodeGroup>
 
-### Post-model hook
+### 模型后钩子
 
-Post-model hooks are now implemented as middleware with the `after_model` method.
-This new pattern is more extensible--you can define multiple middlewares to run after the model is called,
-reusing common patterns across different agents.
+模型后钩子现在通过带有 `after_model` 方法的中间件实现。
+这种新模式更具可扩展性——您可以在调用模型之后定义多个要运行的中间件，
+在不同的智能体中重用通用模式。
 
-Common use cases include:
-* [Human in the loop](/oss/langchain/human-in-the-loop)
-* Output guardrails
+常见用例包括：
+* [人在回路](/oss/langchain/human-in-the-loop)
+* 输出护栏
 
-v1 has a built in middleware for human in the loop approval for tool calls:
+v1 内置了一个用于工具调用的人在回路审批中间件：
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 
@@ -323,7 +323,7 @@ agent = create_agent(
 )
 ```
 
-```python v0 (old)
+```python v0 (旧)
 from langgraph.prebuilt import create_react_agent
 from langgraph.prebuilt import AgentState
 
@@ -339,30 +339,30 @@ agent = create_react_agent(
 ```
 </CodeGroup>
 
-### Custom state
+### 自定义状态
 
-Custom state extends the default agent state with additional fields. You can define custom state in two ways:
+自定义状态使用附加字段扩展了默认的智能体状态。您可以通过两种方式定义自定义状态：
 
-1. **Via @[`state_schema`] on @[`create_agent`]** - Best for state used in tools
-2. **Via middleware** - Best for state managed by specific middleware hooks and tools attached to said middleware
+1. **通过 @[`create_agent`] 上的 @[`state_schema`]** - 适用于在工具中使用的状态
+2. **通过中间件** - 适用于由特定中间件钩子管理的状态以及附加到该中间件的工具
 
 <Note>
-Defining custom state via middleware is preferred over defining it via @[`state_schema`] on @[`create_agent`] because it allows you to keep state extensions conceptually scoped to the relevant middleware and tools.
+通过中间件定义自定义状态优于通过 @[`create_agent`] 上的 @[`state_schema`] 定义，因为它允许您将状态扩展概念上限定在相关的中间件和工具范围内。
 
-`state_schema` is still supported for backwards compatibility on `create_agent`.
+`state_schema` 在 `create_agent` 上仍然受支持以保持向后兼容性。
 </Note>
 
-#### Defining state via `state_schema`
+#### 通过 `state_schema` 定义状态
 
-Use the @[`state_schema`] parameter when your custom state needs to be accessed by tools:
+当您的自定义状态需要被工具访问时，使用 @[`state_schema`] 参数：
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from langchain.tools import tool, ToolRuntime
 from langchain.agents import create_agent, AgentState  # [!code highlight]
 
 
-# Define custom state extending AgentState
+# 定义扩展 AgentState 的自定义状态
 class CustomState(AgentState):
     user_name: str
 
@@ -380,7 +380,7 @@ agent = create_agent(  # [!code highlight]
     state_schema=CustomState  # [!code highlight]
 )
 ```
-```python v0 (old)
+```python v0 (旧)
 from typing import Annotated
 from langgraph.prebuilt import InjectedState, create_react_agent
 from langgraph.prebuilt.chat_agent_executor import AgentState
@@ -403,10 +403,10 @@ agent = create_react_agent(
 ```
 </CodeGroup>
 
-#### Defining state via middleware
+#### 通过中间件定义状态
 
-Middleware can also define custom state by setting the @[`state_schema`] attribute.
-This helps to keep state extensions conceptually scoped to the relevant middleware and tools.
+中间件也可以通过设置 @[`state_schema`] 属性来定义自定义状态。
+这有助于将状态扩展概念上限定在相关的中间件和工具范围内。
 
 ```python
 from langchain.agents.middleware import AgentState, AgentMiddleware
@@ -435,17 +435,17 @@ agent = create_agent(
 )
 ```
 
-See the [middleware documentation](/oss/langchain/middleware#custom-state-schema) for more details on defining custom state via middleware.
+有关通过中间件定义自定义状态的更多详细信息，请参阅 [中间件文档](/oss/langchain/middleware#custom-state-schema)。
 
-#### State type restrictions
+#### 状态类型限制
 
-@[`create_agent`] only supports `TypedDict` for state schemas. Pydantic models and dataclasses are no longer supported.
+@[`create_agent`] 仅支持 `TypedDict` 作为状态模式。不再支持 Pydantic 模型和数据类。
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from langchain.agents import AgentState, create_agent
 
-# AgentState is a TypedDict
+# AgentState 是一个 TypedDict
 class CustomAgentState(AgentState):  # [!code highlight]
     user_id: str
 
@@ -456,7 +456,7 @@ agent = create_agent(
 )
 ```
 
-```python v0 (old)
+```python v0 (旧)
 from typing_extensions import Annotated
 
 from pydantic import BaseModel
@@ -477,19 +477,19 @@ agent = create_react_agent(
 ```
 </CodeGroup>
 
-Simply inherit from `langchain.agents.AgentState` instead of `BaseModel` or decorating with `dataclass`.
-If you need to perform validation, handle it in middleware hooks instead.
+只需从 `langchain.agents.AgentState` 继承，而不是从 `BaseModel` 继承或使用 `dataclass` 装饰。
+如果需要执行验证，请在中间件钩子中处理。
 
-### Model
+### 模型
 
-Dynamic model selection allows you to choose different models based on runtime context (e.g., task complexity, cost constraints, or user preferences). @[`create_react_agent`] released in v0.6 of [`langgraph-prebuilt`](https://pypi.org/project/langgraph-prebuilt) supported dynamic model and tool selection via a callable passed to the `model` parameter.
+动态模型选择允许您根据运行时上下文（例如，任务复杂性、成本约束或用户偏好）选择不同的模型。在 [`langgraph-prebuilt`](https://pypi.org/project/langgraph-prebuilt) 的 v0.6 中发布的 @[`create_react_agent`] 支持通过传递给 `model` 参数的可调用对象进行动态模型和工具选择。
 
-This functionality has been ported to the middleware interface in v1.
+此功能在 v1 中已移植到中间件接口。
 
-#### Dynamic model selection
+#### 动态模型选择
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from langchain.agents import create_agent
 from langchain.agents.middleware import (
     AgentMiddleware, ModelRequest, ModelRequestHandler
@@ -520,7 +520,7 @@ agent = create_agent(
     middleware=[DynamicModelMiddleware(messages_threshold=10)]
 )
 ```
-```python v0 (old)
+```python v0 (旧)
 from langgraph.prebuilt import create_react_agent, AgentState
 from langchain_openai import ChatOpenAI
 
@@ -528,7 +528,7 @@ basic_model = ChatOpenAI(model="gpt-5-nano")
 advanced_model = ChatOpenAI(model="gpt-5")
 
 def select_model(state: AgentState) -> BaseChatModel:
-    # use a more advanced model for longer conversations
+    # 对更长的对话使用更高级的模型
     if len(state.messages) > 10:
         return advanced_model
     return basic_model
@@ -540,35 +540,35 @@ agent = create_react_agent(
 ```
 </CodeGroup>
 
-#### Pre-bound models
+#### 预绑定模型
 
-To better support structured output, @[`create_agent`] no longer accepts pre-bound models with tools or configuration:
+为了更好地支持结构化输出，@[`create_agent`] 不再接受带有工具或配置的预绑定模型：
 
 ```python
-# No longer supported
+# 不再支持
 model_with_tools = ChatOpenAI().bind_tools([some_tool])
 agent = create_agent(model_with_tools, tools=[])
 
-# Use instead
+# 改用
 agent = create_agent("openai:gpt-4o-mini", tools=[some_tool])
 ```
 
 <Note>
-Dynamic model functions can return pre-bound models if structured output is *not* used.
+如果*不*使用结构化输出，动态模型函数可以返回预绑定模型。
 </Note>
 
-### Tools
+### 工具
 
-The @[`tools`][create_agent(tools)] argument to @[`create_agent`] accepts a list of:
+@[`create_agent`] 的 @[`tools`][create_agent(tools)] 参数接受一个列表，包含：
 
-* LangChain @[`BaseTool`] instances (functions decorated with @[`@tool`])
-* Callable objects (functions) with proper type hints and a docstring
-* `dict` that represents a built-in provider tools
+* LangChain @[`BaseTool`] 实例（用 @[`@tool`] 装饰的函数）
+* 具有正确类型提示和文档字符串的可调用对象（函数）
+* 表示内置提供者工具的 `dict`
 
-The argument will no longer accept @[`ToolNode`] instances.
+该参数将不再接受 @[`ToolNode`] 实例。
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from langchain.agents import create_agent
 
 
@@ -577,7 +577,7 @@ agent = create_agent(
     tools=[check_weather, search_web]
 )
 ```
-```python v0 (old)
+```python v0 (旧)
 from langgraph.prebuilt import create_react_agent, ToolNode
 
 
@@ -588,35 +588,35 @@ agent = create_react_agent(
 ```
 </CodeGroup>
 
-#### Handling tool errors
+#### 处理工具错误
 
-You can now configure the handling of tool errors with middleware implementing the `wrap_tool_call` method.
+您现在可以通过实现 `wrap_tool_call` 方法的中间件来配置工具错误的处理。
 
 <CodeGroup>
-```python v1 (new)
-# Example coming soon
+```python v1 (新)
+# 示例即将推出
 ```
-```python v0 (old)
-# Example coming soon
+```python v0 (旧)
+# 示例即将推出
 ```
 </CodeGroup>
 
-### Structured output
+### 结构化输出
 
-#### Node changes
+#### 节点变更
 
-Structured output used to be generated in a separate node from the main agent. This is no longer the case.
-We generate structured output in the main loop, reducing cost and latency.
+结构化输出过去是在与主智能体不同的单独节点中生成的。现在情况不再如此。
+我们在主循环中生成结构化输出，从而降低了成本和延迟。
 
-#### Tool and provider strategies
+#### 工具和提供者策略
 
-In v1, there are two new structured output strategies:
+在 v1 中，有两种新的结构化输出策略：
 
-* `ToolStrategy` uses artificial tool calling to generate structured output
-* `ProviderStrategy` uses provider-native structured output generation
+* `ToolStrategy` 使用人工工具调用来生成结构化输出
+* `ProviderStrategy` 使用提供者原生的结构化输出生成
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from langchain.agents import create_agent
 from langchain.agents.structured_output import ToolStrategy, ProviderStrategy
 from pydantic import BaseModel
@@ -626,16 +626,16 @@ class OutputSchema(BaseModel):
     summary: str
     sentiment: str
 
-# Using ToolStrategy
+# 使用 ToolStrategy
 agent = create_agent(
     model="openai:gpt-4o-mini",
     tools=tools,
-    # explicitly using tool strategy
+    # 显式使用工具策略
     response_format=ToolStrategy(OutputSchema)  # [!code highlight]
 )
 ```
 
-```python v0 (old)
+```python v0 (旧)
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
 
@@ -646,42 +646,41 @@ class OutputSchema(BaseModel):
 agent = create_react_agent(
     model="openai:gpt-4o-mini",
     tools=tools,
-    # using tool strategy by default with no option for provider strategy
+    # 默认使用工具策略，没有提供者策略选项
     response_format=OutputSchema  # [!code highlight]
 )
 
-# OR
+# 或者
 
 agent = create_react_agent(
     model="openai:gpt-4o-mini",
     tools=tools,
-    # using a custom prompt to instruct the model to generate the output schema
+    # 使用自定义提示指示模型生成输出模式
     response_format=("please generate ...", OutputSchema)  # [!code highlight]
 )
 ```
 </CodeGroup>
 
-#### Prompted output removed
+#### 移除了提示输出
 
-**Prompted output** is no longer supported via the `response_format` argument. Compared to strategies
-like artificial tool calling and provider native structured output, prompted output has not proven to be particularly reliable.
+**提示输出**不再通过 `response_format` 参数支持。与人工工具调用和提供者原生结构化输出等策略相比，提示输出已被证明不是特别可靠。
 
-### Streaming node name rename
+### 流式节点名称重命名
 
-When streaming events from agents, the node name has changed from `"agent"` to `"model"` to better reflect the node's purpose.
+当从智能体流式传输事件时，节点名称已从 `"agent"` 更改为 `"model"`，以更好地反映节点的用途。
 
-{/* TODO: add diagrams */}
+{/* TODO: 添加图表 */}
 
-### Runtime context
+### 运行时上下文
 
-When you invoke an agent, it's often the case that you want to pass two types of data:
-* Dynamic state that changes throughout the conversation (e.g., message history)
-* Static context that doesn't change during the conversation (e.g., user metadata)
+当您调用智能体时，通常希望传递两种类型的数据：
+* 在对话过程中变化的动态状态（例如，消息历史）
+* 在对话过程中不变化的静态上下文（例如，用户元数据）
 
-In v1, static context is supported by setting the `context` parameter to `invoke` and `stream`.
+在 v1 中，通过将 `context` 参数设置为 `invoke` 和 `stream` 来支持静态上下文。
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from dataclasses import dataclass
 
 from langchain.agents import create_agent
@@ -703,13 +702,13 @@ result = agent.invoke(
     context=Context(user_id="123", session_id="abc")  # [!code highlight]
 )
 ```
-```python v0 (old)
+```python v0 (旧)
 from langgraph.prebuilt import create_react_agent
 
 
 agent = create_react_agent(model, tools)
 
-# Pass context via configurable
+# 通过 configurable 传递上下文
 result = agent.invoke(
     {"messages": [{"role": "user", "content": "Hello"}]},
     config={  # [!code highlight]
@@ -723,25 +722,25 @@ result = agent.invoke(
 </CodeGroup>
 
 <Note>
-    The old `config["configurable"]` pattern still works for backward compatibility, but using the new `context` parameter is recommended for new applications or applications migrating to v1.
+    旧的 `config["configurable"]` 模式仍然适用于向后兼容性，但对于新应用程序或迁移到 v1 的应用程序，建议使用新的 `context` 参数。
 </Note>
 
 ---
 
-## Standard content
+## 标准内容
 
-In v1, messages gain provider-agnostic standard content blocks. Access them via @[`message.content_blocks`][content_blocks] for a consistent, typed view across providers. The existing @[`message.content`][BaseMessage(content_blocks)] field remains unchanged for strings or provider-native structures.
+在 v1 中，消息获得了与提供者无关的标准内容块。通过 @[`message.content_blocks`][content_blocks] 访问它们，以获取跨提供者的一致、类型化视图。现有的 @[`message.content`][BaseMessage(content_blocks)] 字段对于字符串或提供者原生结构保持不变。
 
-### What changed
+### 变更内容
 
-- New @[`content_blocks`][BaseMessage(content_blocks)] property on messages for normalized content
-- Standardized block shapes, documented in [Messages](/oss/langchain/messages#standard-content-blocks)
-- Optional serialization of standard blocks into `content` via `LC_OUTPUT_VERSION=v1` or `output_version="v1"`
+- 消息上新增 @[`content_blocks`][BaseMessage(content_blocks)] 属性，用于规范化内容
+- 标准化的块形状，记录在 [消息](/oss/langchain/messages#standard-content-blocks) 中
+- 通过 `LC_OUTPUT_VERSION=v1` 或 `output_version="v1"` 将标准块可选地序列化到 `content` 中
 
-### Read standardized content
+### 读取标准化内容
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from langchain.chat_models import init_chat_model
 
 model = init_chat_model("openai:gpt-5-nano")
@@ -753,23 +752,23 @@ for block in response.content_blocks:
     elif block["type"] == "text":
         print(block.get("text"))
 ```
-```python v0 (old)
-# Provider-native formats vary; you needed per-provider handling
+```python v0 (旧)
+# 提供者原生格式各不相同；您需要每个提供者的处理
 response = model.invoke("Explain AI")
 for item in response.content:
     if item.get("type") == "reasoning":
-        ...  # OpenAI-style reasoning
+        ...  # OpenAI 风格的推理
     elif item.get("type") == "thinking":
-        ...  # Anthropic-style thinking
+        ...  # Anthropic 风格的思考
     elif item.get("type") == "text":
-        ...  # Text
+        ...  # 文本
 ```
 </CodeGroup>
 
-### Create multimodal messages
+### 创建多模态消息
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 from langchain.messages import HumanMessage
 
 message = HumanMessage(content_blocks=[
@@ -778,11 +777,11 @@ message = HumanMessage(content_blocks=[
 ])
 res = model.invoke([message])
 ```
-```python v0 (old)
+```python v0 (旧)
 from langchain.messages import HumanMessage
 
 message = HumanMessage(content=[
-    # Provider-native structure
+    # 提供者原生结构
     {"type": "text", "text": "Describe this image."},
     {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}},
 ])
@@ -790,16 +789,16 @@ res = model.invoke([message])
 ```
 </CodeGroup>
 
-### Example block shapes
+### 示例块形状
 
 ```python
-# Text block
+# 文本块
 text_block = {
     "type": "text",
     "text": "Hello world",
 }
 
-# Image block
+# 图像块
 image_block = {
     "type": "image",
     "url": "https://example.com/image.png",
@@ -807,18 +806,18 @@ image_block = {
 }
 ```
 
-See the content blocks [reference](/oss/langchain/messages#content-block-reference) for more details.
+更多详细信息，请参阅内容块 [参考](/oss/langchain/messages#content-block-reference)。
 
-### Serialize standard content
+### 序列化标准内容
 
-Standard content blocks are **not serialized** into the `content` attribute by default. If you need to access standard content blocks in the `content` attribute (e.g., when sending messages to a client), you can opt-in to serializing them into `content`.
+标准内容块默认**不序列化**到 `content` 属性中。如果您需要在 `content` 属性中访问标准内容块（例如，当向客户端发送消息时），可以选择将它们序列化到 `content` 中。
 
 <CodeGroup>
-```bash Environment variable
+```bash 环境变量
 export LC_OUTPUT_VERSION=v1
 ```
 
-```python Initialization parameter
+```python 初始化参数
 from langchain.chat_models import init_chat_model
 
 model = init_chat_model(
@@ -829,60 +828,60 @@ model = init_chat_model(
 </CodeGroup>
 
 <Note>
-    Learn more: [Messages](/oss/langchain/messages#message-content), [Standard content blocks](/oss/langchain/messages#standard-content-blocks), and [Multimodal](/oss/langchain/messages#multimodal).
+    了解更多：[消息](/oss/langchain/messages#message-content), [标准内容块](/oss/langchain/messages#standard-content-blocks), 和 [多模态](/oss/langchain/messages#multimodal)。
 </Note>
 
 ---
 
-## Simplified package
+## 简化包
 
-The `langchain` package namespace has been significantly reduced in v1 to focus on essential building blocks for agents. The streamlined package makes it easier to discover and use the core functionality.
+在 v1 版本中，`langchain` 包的命名空间已显著缩减，专注于智能体的基本构建模块。简化的包使得发现和使用核心功能更加容易。
 
-### Namespace
+### 命名空间
 
-| Module                  | What's available                               | Notes                             |
+| 模块                  | 可用内容                               | 说明                             |
 |-------------------------|------------------------------------------------|-----------------------------------|
-| @[`langchain.agents`]      | @[`create_agent`], @[`AgentState`]                   | Core agent creation functionality |
-| @[`langchain.messages`]    | Message types, @[content blocks][ContentBlock], @[`trim_messages`] | Re-exported from `langchain-core` |
-| @[`langchain.tools`]       | @[`@tool`], @[`BaseTool`], injection helpers          | Re-exported from `langchain-core` |
-| @[`langchain.chat_models`] | @[`init_chat_model`], @[`BaseChatModel`]             | Unified model initialization      |
-| @[`langchain.embeddings`]  | @[`init_embeddings`], @[`Embeddings`]                | Embedding models                  |
+| @[`langchain.agents`]      | @[`create_agent`], @[`AgentState`]                   | 核心智能体创建功能 |
+| @[`langchain.messages`]    | 消息类型, @[内容块][ContentBlock], @[`trim_messages`] | 从 `langchain-core` 重新导出 |
+| @[`langchain.tools`]       | @[`@tool`], @[`BaseTool`], 注入辅助工具          | 从 `langchain-core` 重新导出 |
+| @[`langchain.chat_models`] | @[`init_chat_model`], @[`BaseChatModel`]             | 统一的模型初始化      |
+| @[`langchain.embeddings`]  | @[`init_embeddings`], @[`Embeddings`]                | 嵌入模型                  |
 
 ### `langchain-classic`
 
-If you were using any of the following from the `langchain` package, you'll need to install [`langchain-classic`](https://pypi.org/project/langchain-classic/) and update your imports:
+如果您之前使用过 `langchain` 包中的以下任何内容，您需要安装 [`langchain-classic`](https://pypi.org/project/langchain-classic/) 并更新您的导入：
 
-- Legacy chains (`LLMChain`, `ConversationChain`, etc.)
-- Retrievers (e.g. `MultiQueryRetriever` or anything from the previous `langchain.retrievers` module)
-- The indexing API
-- The hub module (for managing prompts programmatically)
-- Embeddings modules (e.g. `CacheBackedEmbeddings` and community embeddings)
-- [`langchain-community`](https://pypi.org/project/langchain-community) re-exports
-- Other deprecated functionality
+- 旧版链（`LLMChain`, `ConversationChain` 等）
+- 检索器（例如 `MultiQueryRetriever` 或之前 `langchain.retrievers` 模块中的任何内容）
+- 索引 API
+- Hub 模块（用于以编程方式管理提示）
+- 嵌入模块（例如 `CacheBackedEmbeddings` 和社区嵌入）
+- [`langchain-community`](https://pypi.org/project/langchain-community) 重新导出的内容
+- 其他已弃用的功能
 
 <CodeGroup>
-    ```python v1 (new)
-    # Chains
+    ```python v1 (新)
+    # 链
     from langchain_classic.chains import LLMChain
 
-    # Retrievers
+    # 检索器
     from langchain_classic.retrievers import ...
 
-    # Indexing
+    # 索引
     from langchain_classic.indexes import ...
 
     # Hub
     from langchain_classic import hub
     ```
 
-    ```python v0 (old)
-    # Chains
+    ```python v0 (旧)
+    # 链
     from langchain.chains import LLMChain
 
-    # Retrievers
+    # 检索器
     from langchain.retrievers import ...
 
-    # Indexing
+    # 索引
     from langchain.indexes import ...
 
     # Hub
@@ -890,67 +889,67 @@ If you were using any of the following from the `langchain` package, you'll need
     ```
 </CodeGroup>
 
-**Installation**:
+**安装**:
 ```bash
 uv pip install langchain-classic
 ```
 
 ---
 
-## Breaking changes
+## 破坏性变更
 
-### Dropped Python 3.9 support
+### 放弃 Python 3.9 支持
 
-All LangChain packages now require **Python 3.10 or higher**. Python 3.9 reaches [end of life](https://devguide.python.org/versions/) in October 2025.
+所有 LangChain 包现在需要 **Python 3.10 或更高版本**。Python 3.9 将于 2025 年 10 月 [停止支持](https://devguide.python.org/versions/)。
 
-### Updated return type for chat models
+### 更新了聊天模型的返回类型
 
-The return type signature for chat model invocation has been fixed from @[`BaseMessage`] to @[`AIMessage`]. Custom chat models implementing @[`bind_tools`][BaseChatModel.bind_tools] should update their return signature:
+聊天模型调用的返回类型签名已从 @[`BaseMessage`] 修正为 @[`AIMessage`]。实现 @[`bind_tools`][BaseChatModel.bind_tools] 的自定义聊天模型应更新其返回签名：
 
 <CodeGroup>
-```python v1 (new)
+```python v1 (新)
 def bind_tools(
         ...
     ) -> Runnable[LanguageModelInput, AIMessage]:
 ```
-```python v0 (old)
+```python v0 (旧)
 def bind_tools(
         ...
     ) -> Runnable[LanguageModelInput, BaseMessage]:
 ```
 </CodeGroup>
 
-### Default message format for OpenAI Responses API
+### OpenAI Responses API 的默认消息格式
 
-When interacting with the Responses API, `langchain-openai` now defaults to storing response items in message `content`. To restore previous behavior, set the `LC_OUTPUT_VERSION` environment variable to `v0`, or specify `output_version="v0"` when instantiating @[`ChatOpenAI`].
+当与 Responses API 交互时，`langchain-openai` 现在默认将响应项存储在消息 `content` 中。要恢复之前的行为，请将 `LC_OUTPUT_VERSION` 环境变量设置为 `v0`，或者在实例化 @[`ChatOpenAI`] 时指定 `output_version="v0"`。
 
 ```python
-# Enforce previous behavior with output_version flag
+# 使用 output_version 标志强制执行之前的行为
 model = ChatOpenAI(model="gpt-4o-mini", output_version="v0")
 ```
 
-### Default `max_tokens` in `langchain-anthropic`
+### `langchain-anthropic` 中的默认 `max_tokens`
 
-The `max_tokens` parameter in `langchain-anthropic` now defaults to higher values based on the model chosen, rather than the previous default of `1024`. If you relied on the old default, explicitly set `max_tokens=1024`.
+`langchain-anthropic` 中的 `max_tokens` 参数现在根据所选模型默认为更高的值，而不是之前的默认值 `1024`。如果您依赖旧默认值，请显式设置 `max_tokens=1024`。
 
-### Legacy code moved to `langchain-classic`
+### 旧版代码移至 `langchain-classic`
 
-Existing functionality outside the focus of standard interfaces and agents has been moved to the [`langchain-classic`](https://pypi.org/project/langchain-classic) package. See the [Simplified namespace](#simplified-namespace) section for details on what's available in the core `langchain` package and what moved to `langchain-classic`.
+标准接口和智能体焦点之外的现有功能已移至 [`langchain-classic`](https://pypi.org/project/langchain-classic) 包。有关核心 `langchain` 包中可用内容以及移至 `langchain-classic` 的内容的详细信息，请参阅 [简化命名空间](#简化命名空间) 部分。
 
-### Removal of deprecated APIs
+### 移除已弃用的 API
 
-Methods, functions, and other objects that were already deprecated and slated for removal in 1.0 have been deleted. Check the [deprecation notices](https://python.langchain.com/docs/versions/migrating_chains) from previous versions for replacement APIs.
+已删除先前已弃用并计划在 1.0 中移除的方法、函数和其他对象。请查看之前版本的 [弃用通知](https://python.langchain.com/docs/versions/migrating_chains) 以获取替换 API。
 
-### `.text()` is now a property
+### `.text()` 现在是属性
 
-Use of the `.text()` method on message objects should drop the parentheses:
+消息对象上 `.text()` 方法的使用应去掉括号：
 
 ```python
-# Property access
+# 属性访问
 text = response.text
 
-# Deprecated method call
+# 已弃用的方法调用
 text = response.text()
 ```
 
-Existing usage patterns (i.e., `.text()`) will continue to function but now emit a warning.
+现有的使用模式（即 `.text()`）将继续有效，但现在会发出警告。
