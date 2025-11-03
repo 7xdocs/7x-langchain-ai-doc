@@ -3,115 +3,113 @@ title: Context engineering in agents
 sidebarTitle: Context engineering
 ---
 
+## 概述
 
+构建智能体（或任何LLM应用）的难点在于使其足够可靠。虽然它们可能在原型中工作，但在实际使用案例中常常失败。
 
-## Overview
+### 智能体为何失败？
 
-The hard part of building agents (or any LLM application) is making them reliable enough. While they may work for a prototype, they often fail in real-world use cases.
+当智能体失败时，通常是因为智能体内部的LLM调用采取了错误的行动/没有达到我们的预期。LLM失败的原因有两个：
 
-### Why do agents fail?
+1. 底层LLM能力不足
+2. 没有将"正确的"上下文传递给LLM
 
-When agents fail, it's usually because the LLM call inside the agent took the wrong action / didn't do what we expected. LLMs fail for one of two reasons:
+更多时候，实际上是第二个原因导致智能体不可靠。
 
-1. The underlying LLM is not capable enough
-2. The "right" context was not passed to the LLM
-
-More often than not - it's actually the second reason that causes agents to not be reliable.
-
-**Context engineering** is providing the right information and tools in the right format so the LLM can accomplish a task. This is the number one job of AI Engineers. This lack of "right" context is the number one blocker for more reliable agents, and LangChain's agent abstractions are uniquely designed to facilitate context engineering.
+**上下文工程**是指以正确的格式提供正确的信息和工具，使LLM能够完成任务。这是AI工程师的首要工作。缺乏"正确的"上下文是更可靠智能体的首要障碍，而LangChain的智能体抽象设计独特，旨在促进上下文工程。
 
 <Tip>
-New to context engineering? Start with the [conceptual overview](/oss/concepts/context) to understand the different types of context and when to use them.
+刚接触上下文工程？请从[概念概述](/oss/concepts/context)开始，了解不同类型的上下文及其使用时机。
 </Tip>
 
-### The agent loop
+### 智能体循环
 
-A typical agent loop consists of two main steps:
+典型的智能体循环包括两个主要步骤：
 
-1. **Model call** - calls the LLM with a prompt and available tools, returns either a response or a request to execute tools
-2. **Tool execution** - executes the tools that the LLM requested, returns tool results
+1. **模型调用** - 使用提示和可用工具调用LLM，返回响应或执行工具的请求
+2. **工具执行** - 执行LLM请求的工具，返回工具结果
 
 <div style={{ display: "flex", justifyContent: "center" }}>
   <img
     src="/oss/images/core_agent_loop.png"
-    alt="Core agent loop diagram"
+    alt="核心智能体循环图"
     className="rounded-lg"
   />
 </div>
 
-This loop continues until the LLM decides to finish.
+这个循环持续进行，直到LLM决定结束。
 
-### What you can control
+### 您可以控制的内容
 
-To build reliable agents, you need to control what happens at each step of the agent loop, as well as what happens between steps.
+为了构建可靠的智能体，您需要控制智能体循环每一步发生的情况，以及步骤之间发生的情况。
 
-| Context Type | What You Control | Transient or Persistent |
+| 上下文类型 | 您控制的内容 | 瞬态或持久 |
 |--------------|------------------|-------------------------|
-| **[Model Context](#model-context)** | What goes into model calls (instructions, message history, tools, response format) | Transient |
-| **[Tool Context](#tool-context)** | What tools can access and produce (reads/writes to state, store, runtime context) | Persistent |
-| **[Life-cycle Context](#life-cycle-context)** | What happens between model and tool calls (summarization, guardrails, logging, etc.) | Persistent |
+| **[模型上下文](#model-context)** | 模型调用的输入内容（指令、消息历史、工具、响应格式） | 瞬态 |
+| **[工具上下文](#tool-context)** | 工具可以访问和产生的内容（对状态、存储、运行时上下文的读写） | 持久 |
+| **[生命周期上下文](#life-cycle-context)** | 模型和工具调用之间发生的情况（摘要、防护栏、日志记录等） | 持久 |
 
 <CardGroup>
-  <Card title="Transient context" icon="bolt" iconType="duotone">
-    What the LLM sees for a single call. You can modify messages, tools, or prompts without changing what's saved in state.
+  <Card title="瞬态上下文" icon="bolt" iconType="duotone">
+    LLM单次调用所看到的内容。您可以在不改变状态中保存内容的情况下修改消息、工具或提示。
   </Card>
-  <Card title="Persistent context" icon="database" iconType="duotone">
-    What gets saved in state across turns. Life-cycle hooks and tool writes modify this permanently.
+  <Card title="持久上下文" icon="database" iconType="duotone">
+    跨轮次保存在状态中的内容。生命周期钩子和工具写入会永久修改此内容。
   </Card>
 </CardGroup>
 
-### Data sources
+### 数据源
 
-Throughout this process, your agent accesses (reads / writes) different sources of data:
+在整个过程中，您的智能体访问（读取/写入）不同的数据源：
 
-| Data Source | Also Known As | Scope | Examples |
+| 数据源 | 亦称 | 范围 | 示例 |
 |-------------|---------------|-------|----------|
-| **Runtime Context** | Static configuration | Conversation-scoped | User ID, API keys, database connections, permissions, environment settings |
-| **State** | Short-term memory | Conversation-scoped | Current messages, uploaded files, authentication status, tool results |
-| **Store** | Long-term memory | Cross-conversation | User preferences, extracted insights, memories, historical data |
+| **运行时上下文** | 静态配置 | 会话范围 | 用户ID、API密钥、数据库连接、权限、环境设置 |
+| **状态** | 短期记忆 | 会话范围 | 当前消息、上传的文件、认证状态、工具结果 |
+| **存储** | 长期记忆 | 跨会话 | 用户偏好、提取的见解、记忆、历史数据 |
 
-### How it works
+### 工作原理
 
-LangChain [middleware](/oss/langchain/middleware) is the mechanism under the hood that makes context engineering practical for developers using LangChain.
+LangChain的[中间件](/oss/langchain/middleware)是底层机制，使得使用LangChain的开发者能够实际进行上下文工程。
 
-Middleware allows you to hook into any step in the agent lifecycle and:
+中间件允许您钩入智能体生命周期的任何步骤，并：
 
-* Update context
-* Jump to a different step in the agent lifecycle
+* 更新上下文
+* 跳转到智能体生命周期中的不同步骤
 
-Throughout this guide, you'll see frequent use of the middleware API as a means to the context engineering end.
+在本指南中，您将频繁看到使用中间件API作为实现上下文工程目标的手段。
 
-## Model Context
+## 模型上下文
 
-Control what goes into each model call - instructions, available tools, which model to use, and output format. These decisions directly impact reliability and cost.
+控制每次模型调用的输入内容 - 指令、可用工具、使用哪个模型以及输出格式。这些决策直接影响可靠性和成本。
 
 <CardGroup cols={2}>
-    <Card title="System Prompt" icon="message-lines" href="#system-prompt">
-        Base instructions from the developer to the LLM.
+    <Card title="系统提示" icon="message-lines" href="#system-prompt">
+        开发者给LLM的基本指令。
     </Card>
-    <Card title="Messages" icon="comments" href="#messages">
-        The full list of messages (conversation history) sent to the LLM.
+    <Card title="消息" icon="comments" href="#messages">
+        发送给LLM的完整消息列表（对话历史）。
     </Card>
-    <Card title="Tools" icon="wrench" href="#tools">
-        Utilities the agent has access to to take actions.
+    <Card title="工具" icon="wrench" href="#tools">
+        智能体可以访问以执行操作的实用程序。
     </Card>
-    <Card title="Model" icon="brain-circuit" href="#model">
-        The actual model (including configuration) to be called.
+    <Card title="模型" icon="brain-circuit" href="#model">
+        要调用的实际模型（包括配置）。
     </Card>
-    <Card title="Response Format" icon="brackets-curly" href="#response-format">
-        Schema specification for the model's final response.
+    <Card title="响应格式" icon="brackets-curly" href="#response-format">
+        模型最终响应的模式规范。
     </Card>
 </CardGroup>
 
-All of these types of model context can draw from **state** (short-term memory), **store** (long-term memory), or **runtime context** (static configuration).
+所有这些类型的模型上下文都可以从**状态**（短期记忆）、**存储**（长期记忆）或**运行时上下文**（静态配置）中获取。
 
-### System Prompt
+### 系统提示
 
-The system prompt sets the LLM's behavior and capabilities. Different users, contexts, or conversation stages need different instructions. Successful agents draw on memories, preferences, and configuration to provide the right instructions for the current state of the conversation.
+系统提示设置LLM的行为和能力。不同的用户、上下文或对话阶段需要不同的指令。成功的智能体利用记忆、偏好和配置来为对话的当前状态提供正确的指令。
 
 <Tabs>
-  <Tab title="State">
-    Access message count or conversation context from state:
+  <Tab title="状态">
+    从状态访问消息计数或对话上下文：
 
     :::python
     ```python
@@ -164,8 +162,8 @@ The system prompt sets the LLM's behavior and capabilities. Different users, con
     :::
   </Tab>
 
-  <Tab title="Store">
-    Access user preferences from long-term memory:
+  <Tab title="存储">
+    从长期记忆中访问用户偏好：
 
     :::python
     ```python
@@ -242,8 +240,8 @@ The system prompt sets the LLM's behavior and capabilities. Different users, con
     :::
   </Tab>
 
-  <Tab title="Runtime Context">
-    Access user ID or configuration from Runtime Context:
+  <Tab title="运行时上下文">
+    从运行时上下文访问用户ID或配置：
 
     :::python
     ```python
@@ -327,14 +325,14 @@ The system prompt sets the LLM's behavior and capabilities. Different users, con
 
 </Tabs>
 
-### Messages
+### 消息
 
-Messages make up the prompt that is sent to the LLM.
-It's critical to manage the content of messages to ensure that the LLM has the right information to respond well.
+消息构成了发送给LLM的提示。
+管理消息的内容对于确保LLM拥有正确的信息以良好响应至关重要。
 
 <Tabs>
-  <Tab title="State">
-    Inject uploaded file context from State when relevant to current query:
+  <Tab title="状态">
+    当与当前查询相关时，从状态注入上传的文件上下文：
 
     :::python
     ```python
@@ -423,8 +421,8 @@ Reference these files when answering questions.`;
     :::
   </Tab>
 
-  <Tab title="Store">
-    Inject user's email writing style from Store to guide drafting:
+  <Tab title="存储">
+    从存储中注入用户的电子邮件写作风格以指导草稿撰写：
 
     :::python
     ```python
@@ -523,8 +521,8 @@ ${style.exampleEmail || ''}`;
     :::
   </Tab>
 
-  <Tab title="Runtime Context">
-    Inject compliance rules from Runtime Context based on user's jurisdiction:
+  <Tab title="运行时上下文">
+    根据用户的管辖区域从运行时上下文注入合规规则：
 
     :::python
     ```python
@@ -639,20 +637,20 @@ ${rules.join("\n")}`;
 </Tabs>
 
 <Note>
-**Transient vs Persistent Message Updates:**
+**瞬态与持久消息更新：**
 
-The examples above use `wrap_model_call` to make **transient** updates - modifying what messages are sent to the model for a single call without changing what's saved in state.
+上面的示例使用 `wrap_model_call` 进行**瞬态**更新 - 修改发送给模型的消息，仅针对单次调用，而不改变状态中保存的内容。
 
-For **persistent** updates that modify state (like the summarization example in [Life-cycle Context](#summarization)), use life-cycle hooks like `before_model` or `after_model` to permanently update the conversation history. See the [middleware documentation](/oss/langchain/middleware) for more details.
+对于**持久**更新（修改状态，如[生命周期上下文](#summarization)中的摘要示例），请使用生命周期钩子，如 `before_model` 或 `after_model` 来永久更新对话历史。有关更多详细信息，请参阅[中间件文档](/oss/langchain/middleware)。
 </Note>
 
-### Tools
+### 工具
 
-Tools let the model interact with databases, APIs, and external systems. How you define and select tools directly impacts whether the model can complete tasks effectively.
+工具让模型能够与数据库、API和外部系统交互。您定义和选择工具的方式直接影响模型能否有效完成任务。
 
-#### Defining tools
+#### 定义工具
 
-Each tool needs a clear name, description, argument names, and argument descriptions. These aren't just metadata—they guide the model's reasoning about when and how to use the tool.
+每个工具都需要清晰的名称、描述、参数名称和参数描述。这些不仅仅是元数据 - 它们指导模型关于何时以及如何使用工具的推理。
 
 :::python
 ```python
@@ -704,13 +702,13 @@ const searchOrders = tool(
 ```
 :::
 
-#### Selecting tools
+#### 选择工具
 
-Not every tool is appropriate for every situation. Too many tools may overwhelm the model (overload context) and increase errors; too few limit capabilities. Dynamic tool selection adapts the available toolset based on authentication state, user permissions, feature flags, or conversation stage.
+并非每个工具都适用于所有情况。工具过多可能会使模型不堪重负（上下文过载）并增加错误；工具过少则会限制能力。动态工具选择基于认证状态、用户权限、功能标志或对话阶段来调整可用工具集。
 
 <Tabs>
-  <Tab title="State">
-    Enable advanced tools only after certain conversation milestones:
+  <Tab title="状态">
+    仅在达到特定对话里程碑后启用高级工具：
 
     :::python
     ```python
@@ -776,8 +774,8 @@ Not every tool is appropriate for every situation. Too many tools may overwhelm 
     :::
   </Tab>
 
-  <Tab title="Store">
-    Filter tools based on user preferences or feature flags in Store:
+  <Tab title="存储">
+    基于存储中的用户偏好或功能标志过滤工具：
 
     :::python
     ```python
@@ -854,8 +852,8 @@ Not every tool is appropriate for every situation. Too many tools may overwhelm 
     :::
   </Tab>
 
-  <Tab title="Runtime Context">
-    Filter tools based on user permissions from Runtime Context:
+  <Tab title="运行时上下文">
+    基于运行时上下文中的用户权限过滤工具：
 
     :::python
     ```python
@@ -934,16 +932,15 @@ Not every tool is appropriate for every situation. Too many tools may overwhelm 
   </Tab>
 </Tabs>
 
-See [Dynamically selecting tools](/oss/langchain/middleware#dynamically-selecting-tools) for more examples.
+有关更多示例，请参阅[动态选择工具](/oss/langchain/middleware#dynamically-selecting-tools)。
 
-### Model
+### 模型
 
-Different models have different strengths, costs, and context windows. Select the right model for the task at hand, which
-might change during an agent run.
+不同的模型具有不同的优势、成本和上下文窗口。为当前任务选择合适的模型，这可能在智能体运行期间发生变化。
 
 <Tabs>
-  <Tab title="State">
-    Use different models based on conversation length from State:
+  <Tab title="状态">
+    基于状态中的对话长度使用不同的模型：
 
     :::python
     ```python
@@ -1019,8 +1016,8 @@ might change during an agent run.
     :::
   </Tab>
 
-  <Tab title="Store">
-    Use user's preferred model from Store:
+  <Tab title="存储">
+    使用存储中用户偏好的模型：
 
     :::python
     ```python
@@ -1113,8 +1110,8 @@ might change during an agent run.
     :::
   </Tab>
 
-  <Tab title="Runtime Context">
-    Select model based on cost limits or environment from Runtime Context:
+  <Tab title="运行时上下文">
+    基于运行时上下文中的成本限制或环境选择模型：
 
     :::python
     ```python
@@ -1208,17 +1205,17 @@ might change during an agent run.
   </Tab>
 </Tabs>
 
-See [Dynamic model](/oss/langchain/agents#dynamic-model) for more examples.
+有关更多示例，请参阅[动态模型](/oss/langchain/agents#dynamic-model)。
 
-### Response Format
+### 响应格式
 
-Structured output transforms unstructured text into validated, structured data. When extracting specific fields or returning data for downstream systems, free-form text isn't sufficient.
+结构化输出将非结构化文本转换为经过验证的结构化数据。当提取特定字段或为下游系统返回数据时，自由格式的文本是不够的。
 
-**How it works:** When you provide a schema as the response format, the model's final response is guaranteed to conform to that schema. The agent runs the model / tool calling loop until the model is done calling tools, then the final response is coerced into the provided format.
+**工作原理：** 当您提供模式作为响应格式时，模型的最终响应保证符合该模式。智能体运行模型/工具调用循环，直到模型完成工具调用，然后将最终响应强制转换为提供的格式。
 
-#### Defining formats
+#### 定义格式
 
-Schema definitions guide the model. Field names, types, and descriptions specify exactly what format the output should adhere to.
+模式定义指导模型。字段名称、类型和描述确切指定输出应遵循的格式。
 
 :::python
 ```python
@@ -1263,13 +1260,13 @@ const customerSupportTicket = z.object({
 ```
 :::
 
-#### Selecting formats
+#### 选择格式
 
-Dynamic response format selection adapts schemas based on user preferences, conversation stage, or role—returning simple formats early and detailed formats as complexity increases.
+动态响应格式选择基于用户偏好、对话阶段或角色调整模式 - 早期返回简单格式，随着复杂性增加返回详细格式。
 
 <Tabs>
-  <Tab title="State">
-    Configure structured output based on conversation state:
+  <Tab title="状态">
+    基于对话状态配置结构化输出：
 
     :::python
     ```python
@@ -1350,8 +1347,8 @@ Dynamic response format selection adapts schemas based on user preferences, conv
     :::
   </Tab>
 
-  <Tab title="Store">
-    Configure output format based on user preferences in Store:
+  <Tab title="存储">
+    基于存储中的用户偏好配置输出格式：
 
     :::python
     ```python
@@ -1449,8 +1446,8 @@ Dynamic response format selection adapts schemas based on user preferences, conv
     :::
   </Tab>
 
-  <Tab title="Runtime Context">
-    Configure output format based on Runtime Context like user role or environment:
+  <Tab title="运行时上下文">
+    基于运行时上下文（如用户角色或环境）配置输出格式：
 
     :::python
     ```python
@@ -1544,21 +1541,21 @@ Dynamic response format selection adapts schemas based on user preferences, conv
   </Tab>
 </Tabs>
 
-## Tool Context
+## 工具上下文
 
-Tools are special in that they both read and write context.
+工具的特殊之处在于它们既读取又写入上下文。
 
-In the most basic case, when a tool executes, it receives the LLM's request parameters and returns a tool message back. The tool does its work and produces a result.
+在最基本的情况下，当工具执行时，它接收LLM的请求参数并返回工具消息。工具完成其工作并产生结果。
 
-Tools can also fetch important information for the model that allows it to perform and complete tasks.
+工具还可以为模型获取重要信息，使其能够执行和完成任务。
 
-### Reads
+### 读取
 
-Most real-world tools need more than just the LLM's parameters. They need user IDs for database queries, API keys for external services, or current session state to make decisions. Tools read from state, store, and runtime context to access this information.
+大多数现实世界的工具需要的不仅仅是LLM的参数。它们需要用户ID用于数据库查询、API密钥用于外部服务或当前会话状态以做出决策。工具从状态、存储和运行时上下文读取以访问此信息。
 
 <Tabs>
-  <Tab title="State">
-    Read from State to check current session information:
+  <Tab title="状态">
+    从状态读取以检查当前会话信息：
 
     :::python
     ```python
@@ -1614,8 +1611,8 @@ Most real-world tools need more than just the LLM's parameters. They need user I
     :::
   </Tab>
 
-  <Tab title="Store">
-    Read from Store to access persisted user preferences:
+  <Tab title="存储">
+    从存储读取以访问持久化的用户偏好：
 
     :::python
     ```python
@@ -1692,8 +1689,8 @@ Most real-world tools need more than just the LLM's parameters. They need user I
     :::
   </Tab>
 
-  <Tab title="Runtime Context">
-    Read from Runtime Context for configuration like API keys and user IDs:
+  <Tab title="运行时上下文">
+    从运行时上下文读取配置，如API密钥和用户ID：
 
     :::python
     ```python
@@ -1782,14 +1779,13 @@ Most real-world tools need more than just the LLM's parameters. They need user I
   </Tab>
 </Tabs>
 
-### Writes
+### 写入
 
-Tool results can be used to help an agent complete a given task. Tools can both return results directly to the model
-and update the memory of the agent to make important context available to future steps.
+工具结果可用于帮助智能体完成给定任务。工具既可以直接将结果返回给模型，也可以更新智能体的记忆，使重要上下文可用于未来步骤。
 
 <Tabs>
-  <Tab title="State">
-    Write to State to track session-specific information using Command:
+  <Tab title="状态">
+    使用Command写入状态以跟踪会话特定信息：
 
     :::python
     ```python
@@ -1850,8 +1846,8 @@ and update the memory of the agent to make important context available to future
     :::
   </Tab>
 
-  <Tab title="Store">
-    Write to Store to persist data across sessions:
+  <Tab title="存储">
+    写入存储以跨会话持久化数据：
 
     :::python
     ```python
@@ -1936,30 +1932,30 @@ and update the memory of the agent to make important context available to future
   </Tab>
 </Tabs>
 
-See [Tools](/oss/langchain/tools) for comprehensive examples of accessing state, store, and runtime context in tools.
+有关在工具中访问状态、存储和运行时上下文的全面示例，请参阅[工具](/oss/langchain/tools)。
 
-## Life-cycle Context
+## 生命周期上下文
 
-Control what happens **between** the core agent steps - intercepting data flow to implement cross-cutting concerns like summarization, guardrails, and logging.
+控制**核心智能体步骤之间**发生的情况 - 拦截数据流以实现横切关注点，如摘要、防护栏和日志记录。
 
-As you've seen in [Model Context](#model-context) and [Tool Context](#tool-context), [middleware](/oss/langchain/middleware) is the mechanism that makes context engineering practical. Middleware allows you to hook into any step in the agent lifecycle and either:
+正如您在[模型上下文](#model-context)和[工具上下文](#tool-context)中所见，[中间件](/oss/langchain/middleware)是使上下文工程切实可行的机制。中间件允许您钩入智能体生命周期中的任何步骤，并：
 
-1. **Update context** - Modify state and store to persist changes, update conversation history, or save insights
-2. **Jump in the lifecycle** - Move to different steps in the agent cycle based on context (e.g., skip tool execution if a condition is met, repeat model call with modified context)
+1. **更新上下文** - 修改状态和存储以持久化更改、更新对话历史或保存见解
+2. **在生命周期中跳转** - 基于上下文移动到智能体循环中的不同步骤（例如，如果满足条件则跳过工具执行，使用修改后的上下文重复模型调用）
 
 <div style={{ display: "flex", justifyContent: "center" }}>
   <img
     src="/oss/images/middleware_final.png"
-    alt="Middleware hooks in the agent loop"
+    alt="智能体循环中的中间件钩子"
     className="rounded-lg"
   />
 </div>
 
-### Example: Summarization
+### 示例：摘要
 
-One of the most common life-cycle patterns is automatically condensing conversation history when it gets too long. Unlike the transient message trimming shown in [Model Context](#messages), summarization **persistently updates state** - permanently replacing old messages with a summary that's saved for all future turns.
+最常见的生命周期模式之一是在对话历史过长时自动压缩。与[模型上下文](#messages)中显示的瞬态消息修剪不同，摘要**持久更新状态** - 永久用摘要替换旧消息，该摘要将保存用于所有未来轮次。
 
-LangChain offers built-in middleware for this:
+LangChain为此提供了内置中间件：
 
 :::python
 ```python
@@ -1972,8 +1968,8 @@ agent = create_agent(
     middleware=[
         SummarizationMiddleware(
             model="openai:gpt-4o-mini",
-            max_tokens_before_summary=4000,  # Trigger summarization at 4000 tokens
-            messages_to_keep=20,  # Keep last 20 messages after summary
+            max_tokens_before_summary=4000,  # 在4000个标记时触发摘要
+            messages_to_keep=20,  # 摘要后保留最后20条消息
         ),
     ],
 )
@@ -1990,38 +1986,38 @@ const agent = createAgent({
   middleware: [
     summarizationMiddleware({
       model: "openai:gpt-4o-mini",
-      maxTokensBeforeSummary: 4000, // Trigger summarization at 4000 tokens
-      messagesToKeep: 20, // Keep last 20 messages after summary
+      maxTokensBeforeSummary: 4000, // 在4000个标记时触发摘要
+      messagesToKeep: 20, // 摘要后保留最后20条消息
     }),
   ],
 });
 ```
 :::
 
-When the conversation exceeds the token limit, `SummarizationMiddleware` automatically:
-1. Summarizes older messages using a separate LLM call
-2. Replaces them with a summary message in State (permanently)
-3. Keeps recent messages intact for context
+当对话超过标记限制时，`SummarizationMiddleware` 自动：
+1. 使用单独的LLM调用汇总较早的消息
+2. 用状态中的摘要消息替换它们（永久）
+3. 保留最近的消息以保持上下文
 
-The summarized conversation history is permanently updated - future turns will see the summary instead of the original messages.
+汇总后的对话历史被永久更新 - 未来的轮次将看到摘要而不是原始消息。
 
 <Note>
-For a complete list of built-in middleware, available hooks, and how to create custom middleware, see the [Middleware documentation](/oss/langchain/middleware).
+有关内置中间件的完整列表、可用钩子以及如何创建自定义中间件，请参阅[中间件文档](/oss/langchain/middleware)。
 </Note>
 
-## Best practices
+## 最佳实践
 
-1. **Start simple** - Begin with static prompts and tools, add dynamics only when needed
-2. **Test incrementally** - Add one context engineering feature at a time
-3. **Monitor performance** - Track model calls, token usage, and latency
-4. **Use built-in middleware** - Leverage [`SummarizationMiddleware`](/oss/langchain/middleware#summarization), [`LLMToolSelectorMiddleware`](/oss/langchain/middleware#llm-tool-selector), etc.
-5. **Document your context strategy** - Make it clear what context is being passed and why
-6. **Understand transient vs persistent**: Model context changes are transient (per-call), while life-cycle context changes persist to state
+1. **从简单开始** - 从静态提示和工具开始，仅在需要时添加动态功能
+2. **增量测试** - 一次添加一个上下文工程功能
+3. **监控性能** - 跟踪模型调用、标记使用和延迟
+4. **使用内置中间件** - 利用 [`SummarizationMiddleware`](/oss/langchain/middleware#summarization)、[`LLMToolSelectorMiddleware`](/oss/langchain/middleware#llm-tool-selector) 等
+5. **记录您的上下文策略** - 清晰说明正在传递什么上下文以及原因
+6. **理解瞬态与持久**：模型上下文更改是瞬态的（每次调用），而生命周期上下文更改持久保存到状态
 
-## Related resources
+## 相关资源
 
-- [Context conceptual overview](/oss/concepts/context) - Understand context types and when to use them
-- [Middleware](/oss/langchain/middleware) - Complete middleware guide
-- [Tools](/oss/langchain/tools) - Tool creation and context access
-- [Memory](/oss/concepts/memory) - Short-term and long-term memory patterns
-- [Agents](/oss/langchain/agents) - Core agent concepts
+- [上下文概念概述](/oss/concepts/context) - 了解上下文类型及其使用时机
+- [中间件](/oss/langchain/middleware) - 完整的中间件指南
+- [工具](/oss/langchain/tools) - 工具创建和上下文访问
+- [记忆](/oss/concepts/memory) - 短期和长期记忆模式
+- [智能体](/oss/langchain/agents) - 核心智能体概念

@@ -5,16 +5,16 @@ title: Model Context Protocol (MCP)
 
 
 :::python
-[Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) is an open protocol that standardizes how applications provide tools and context to LLMs. LangChain agents can use tools defined on MCP servers using the [`langchain-mcp-adapters`](https://github.com/langchain-ai/langchain-mcp-adapters) library.
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) 是一个开放协议，标准化了应用程序向 LLM 提供工具和上下文的方式。LangChain 代理可以使用 [`langchain-mcp-adapters`](https://github.com/langchain-ai/langchain-mcp-adapters) 库来使用在 MCP 服务器上定义的工具。
 :::
 :::js
-[Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) is an open protocol that standardizes how applications provide tools and context to LLMs. LangChain agents can use tools defined on MCP servers using the [`langchain-mcp-adapters`](https://github.com/langchain-ai/langchainjs/tree/main/libs/langchain-mcp-adapters/adapters) library.
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) 是一个开放协议，标准化了应用程序向 LLM 提供工具和上下文的方式。LangChain 代理可以使用 [`langchain-mcp-adapters`](https://github.com/langchain-ai/langchainjs/tree/main/libs/langchain-mcp-adapters/adapters) 库来使用在 MCP 服务器上定义的工具。
 :::
 
-## Install
+## 安装
 
 :::python
-Install the `langchain-mcp-adapters` library to use MCP tools in LangGraph:
+安装 `langchain-mcp-adapters` 库以在 LangGraph 中使用 MCP 工具：
 
 <CodeGroup>
 ```bash pip
@@ -28,7 +28,7 @@ uv add langchain-mcp-adapters
 :::
 
 :::js
-Install the `@langchain/mcp-adapters` library to use MCP tools in LangGraph:
+安装 `@langchain/mcp-adapters` 库以在 LangGraph 中使用 MCP 工具：
 
 <CodeGroup>
 ```bash npm
@@ -49,18 +49,18 @@ bun add @langchain/mcp-adapters
 </CodeGroup>
 :::
 
-## Transport types
+## 传输类型
 
-MCP supports different transport mechanisms for client-server communication:
+MCP 支持不同的传输机制用于客户端-服务器通信：
 
-- stdio: Client launches server as a subprocess and communicates via standard input/output. Best for local tools and simple setups.
-- Streamable HTTP: Server runs as an independent process handling HTTP requests. Supports remote connections and multiple clients.
-- Server-Sent Events (SSE): a variant of streamable HTTP optimized for real-time streaming communication.
+- stdio：客户端将服务器作为子进程启动，并通过标准输入/输出进行通信。适用于本地工具和简单设置。
+- 可流式 HTTP：服务器作为独立的进程运行，处理 HTTP 请求。支持远程连接和多个客户端。
+- 服务器发送事件 (SSE)：可流式 HTTP 的一种变体，针对实时流通信进行了优化。
 
-## Use MCP tools
+## 使用 MCP 工具
 
 :::python
-`langchain-mcp-adapters` enables agents to use tools defined across one or more MCP server.
+`langchain-mcp-adapters` 使代理能够使用在一个或多个 MCP 服务器上定义的工具。
 
 ```python Accessing multiple MCP servers icon="server"
 from langchain_mcp_adapters.client import MultiServerMCPClient  # [!code highlight]
@@ -99,7 +99,7 @@ weather_response = await agent.ainvoke(
 :::
 
 :::js
-`@langchain/mcp-adapters` enables agents to use tools defined across one or more MCP server.
+`@langchain/mcp-adapters` 使代理能够使用在一个或多个 MCP 服务器上定义的工具。
 
 ```ts Accessing multiple MCP servers icon="server"
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";  // [!code highlight]
@@ -137,13 +137,13 @@ const weatherResponse = await agent.invoke({
 :::
 
 <Note>
-    `MultiServerMCPClient` is **stateless by default**. Each tool invocation creates a fresh MCP `ClientSession`, executes the tool, and then cleans up.
+    `MultiServerMCPClient` **默认是无状态的**。每次工具调用都会创建一个新的 MCP `ClientSession`，执行工具，然后进行清理。
 </Note>
 
-## Custom MCP servers
+## 自定义 MCP 服务器
 
 :::python
-To create your own MCP servers, you can use the `mcp` library. This library provides a simple way to define [tools](https://modelcontextprotocol.io/docs/learn/server-concepts#tools-ai-actions) and run them as servers.
+要创建自己的 MCP 服务器，您可以使用 `mcp` 库。该库提供了一种简单的方法来定义[工具](https://modelcontextprotocol.io/docs/learn/server-concepts#tools-ai-actions)并将其作为服务器运行。
 
 <CodeGroup>
 ```bash pip
@@ -157,7 +157,7 @@ uv add mcp
 :::
 
 :::js
-To create your own MCP servers, you can use the `@modelcontextprotocol/sdk` library. This library provides a simple way to define [tools](https://modelcontextprotocol.io/docs/learn/server-concepts#tools-ai-actions) and run them as servers.
+要创建自己的 MCP 服务器，您可以使用 `@modelcontextprotocol/sdk` 库。该库提供了一种简单的方法来定义[工具](https://modelcontextprotocol.io/docs/learn/server-concepts#tools-ai-actions)并将其作为服务器运行。
 
 <CodeGroup>
 ```bash npm
@@ -178,7 +178,7 @@ bun add @modelcontextprotocol/sdk
 </CodeGroup>
 :::
 
-Use the following reference implementations to test your agent with MCP tool servers.
+使用以下参考实现来测试您的代理与 MCP 工具服务器。
 
 :::python
 ```python title="Math server (stdio transport)" icon="floppy-disk"
@@ -392,9 +392,9 @@ app.listen(PORT, () => {
 ```
 :::
 
-## Stateful tool usage
+## 有状态工具使用
 
-For stateful servers that maintain context between tool calls, use `client.session()` to create a persistent `ClientSession`.
+对于需要在工具调用之间维护上下文的有状态服务器，使用 `client.session()` 来创建一个持久的 `ClientSession`。
 
 :::python
 ```python Using MCP ClientSession for stateful tool usage
@@ -416,10 +416,10 @@ const tools = await loadMCPTools(session);
 ```
 :::
 
-## Additional resources
+## 额外资源
 
-* [MCP documentation](https://modelcontextprotocol.io/introduction)
-* [MCP Transport documentation](https://modelcontextprotocol.io/docs/concepts/transports)
+* [MCP 文档](https://modelcontextprotocol.io/introduction)
+* [MCP 传输文档](https://modelcontextprotocol.io/docs/concepts/transports)
 :::python
 * [`langchain-mcp-adapters`](https://github.com/langchain-ai/langchain-mcp-adapters)
 :::

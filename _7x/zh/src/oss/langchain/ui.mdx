@@ -13,18 +13,18 @@ import chat_uiJS from '/snippets/oss/ui-js.mdx';
 <chat_uiJS />
 :::
 
-### Connect to your agent
+### 连接到您的智能体
 
-Agent Chat UI can connect to both [local](/oss/langchain/studio#setup-local-langgraph-server) and [deployed agents](/oss/langchain/deploy).
+Agent Chat UI 可以连接到[本地](/oss/langchain/studio#setup-local-langgraph-server)和[已部署的智能体](/oss/langchain/deploy)。
 
-After starting Agent Chat UI, you'll need to configure it to connect to your agent:
+启动 Agent Chat UI 后，您需要配置它以连接到您的智能体：
 
-1. **Graph ID**: Enter your graph name (find this under `graphs` in your `langgraph.json` file)
-2. **Deployment URL**: Your LangGraph server's endpoint (e.g., `http://localhost:2024` for local development, or your deployed agent's URL)
-3. **LangSmith API key (optional)**: Add your LangSmith API key (not required if you're using a local LangGraph server)
+1. **图 ID**：输入您的图名称（在 `langgraph.json` 文件的 `graphs` 下查找）
+2. **部署 URL**：您的 LangGraph 服务器端点（例如，本地开发使用 `http://localhost:2024`，或已部署智能体的 URL）
+3. **LangSmith API 密钥（可选）**：添加您的 LangSmith API 密钥（如果使用本地 LangGraph 服务器则不需要）
 
-Once configured, Agent Chat UI will automatically fetch and display any interrupted threads from your agent.
+配置完成后，Agent Chat UI 将自动获取并显示来自您智能体的所有中断线程。
 
 <Tip>
-  Agent Chat UI has out-of-the-box support for rendering tool calls and tool result messages. To customize what messages are shown, see [Hiding Messages in the Chat](https://github.com/langchain-ai/agent-chat-ui?tab=readme-ov-file#hiding-messages-in-the-chat).
+  Agent Chat UI 开箱即用地支持渲染工具调用和工具结果消息。要自定义显示的消息，请参阅[隐藏聊天中的消息](https://github.com/langchain-ai/agent-chat-ui?tab=readme-ov-file#hiding-messages-in-the-chat)。
 </Tip>

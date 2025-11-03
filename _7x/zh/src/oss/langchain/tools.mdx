@@ -4,22 +4,22 @@ title: Tools
 
 
 
-Many AI applications interact with users via natural language. However, some use cases require models to interface directly with external systems—such as APIs, databases, or file systems—using structured input.
+许多AI应用通过自然语言与用户交互。然而，某些用例要求模型使用结构化输入直接与外部系统（如API、数据库或文件系统）对接。
 
-Tools are components that [agents](/oss/langchain/agents) call to perform actions. They extend model capabilities by letting them interact with the world through well-defined inputs and outputs. Tools encapsulate a callable function and its input schema. These can be passed to compatible [chat models](/oss/langchain/models), allowing the model to decide whether to invoke a tool and with what arguments. In these scenarios, tool calling enables models to generate requests that conform to a specified input schema.
+工具是[智能体](/oss/langchain/agents)调用以执行操作的组件。它们通过让模型与外部世界进行具有明确输入和输出的交互来扩展模型能力。工具封装了一个可调用函数及其输入模式。这些可以传递给兼容的[聊天模型](/oss/langchain/models)，允许模型决定是否调用工具以及使用什么参数。在这些场景中，工具调用使模型能够生成符合指定输入模式的请求。
 
 <Note>
-**Server-side tool use**
+**服务端工具使用**
 
-Some chat models (e.g., [OpenAI](/oss/integrations/chat/openai), [Anthropic](/oss/integrations/chat/anthropic), and [Gemini](/oss/integrations/chat/google_generative_ai)) feature [built-in tools](/oss/langchain/models#server-side-tool-use) that are executed server-side, such as web search and code interpreters. Refer to the [provider overview](/oss/integrations/providers/overview) to learn how to access these tools with your specific chat model.
+某些聊天模型（例如 [OpenAI](/oss/integrations/chat/openai)、[Anthropic](/oss/integrations/chat/anthropic) 和 [Gemini](/oss/integrations/chat/google_generative_ai)）具有[内置工具](/oss/langchain/models#server-side-tool-use)，这些工具在服务端执行，例如网络搜索和代码解释器。请参阅[提供商概览](/oss/integrations/providers/overview)以了解如何通过您特定的聊天模型访问这些工具。
 </Note>
 
-## Create tools
+## 创建工具
 
-### Basic tool definition
+### 基础工具定义
 
 :::python
-The simplest way to create a tool is with the @[`@tool`] decorator. By default, the function's docstring becomes the tool's description that helps the model understand when to use it:
+创建工具最简单的方法是使用 @[`@tool`] 装饰器。默认情况下，函数的文档字符串会成为工具的描述，帮助模型理解何时使用它：
 
 ```python wrap
 from langchain.tools import tool
@@ -35,11 +35,11 @@ def search_database(query: str, limit: int = 10) -> str:
     return f"Found {limit} results for '{query}'"
 ```
 
-Type hints are **required** as they define the tool's input schema. The docstring should be informative and concise to help the model understand the tool's purpose.
+类型提示是**必需的**，因为它们定义了工具的输入模式。文档字符串应具有信息性且简洁，以帮助模型理解工具的用途。
 :::
 
 :::js
-The simplest way to create a tool is by importing the `tool` function from the `langchain` package. You can use [zod](https://zod.dev/) to define the tool's input schema:
+创建工具最简单的方法是从 `langchain` 包中导入 `tool` 函数。您可以使用 [zod](https://zod.dev/) 来定义工具的输入模式：
 
 ```ts
 import * as z from "zod"
@@ -60,11 +60,11 @@ const searchDatabase = tool(
 :::
 
 :::python
-### Customize tool properties
+### 自定义工具属性
 
-#### Custom tool name
+#### 自定义工具名称
 
-By default, the tool name comes from the function name. Override it when you need something more descriptive:
+默认情况下，工具名称来自函数名称。当您需要更具描述性的名称时，可以覆盖它：
 
 ```python wrap
 @tool("web_search")  # Custom name
@@ -75,9 +75,9 @@ def search(query: str) -> str:
 print(search.name)  # web_search
 ```
 
-#### Custom tool description
+#### 自定义工具描述
 
-Override the auto-generated tool description for clearer model guidance:
+覆盖自动生成的工具描述，以提供更清晰的模型指导：
 
 ```python wrap
 @tool("calculator", description="Performs arithmetic calculations. Use this for any math problems.")
@@ -86,9 +86,9 @@ def calc(expression: str) -> str:
     return str(eval(expression))
 ```
 
-### Advanced schema definition
+### 高级模式定义
 
-Define complex inputs with Pydantic models or JSON schemas:
+使用 Pydantic 模型或 JSON 模式定义复杂输入：
 
 <CodeGroup>
     ```python wrap Pydantic model
@@ -140,33 +140,33 @@ Define complex inputs with Pydantic models or JSON schemas:
 </CodeGroup>
 :::
 
-## Accessing Context
+## 访问上下文
 
 <Info>
-**Why this matters:** Tools are most powerful when they can access agent state, runtime context, and long-term memory. This enables tools to make context-aware decisions, personalize responses, and maintain information across conversations.
+**为何重要：** 当工具能够访问智能体状态、运行时上下文和长期记忆时，它们才是最强大的。这使工具能够做出上下文感知的决策、个性化响应并在整个对话过程中维护信息。
 </Info>
 
-Tools can access runtime information through the `ToolRuntime` parameter, which provides:
+工具可以通过 `ToolRuntime` 参数访问运行时信息，该参数提供：
 
-- **State** - Mutable data that flows through execution (messages, counters, custom fields)
-- **Context** - Immutable configuration like user IDs, session details, or application-specific configuration
-- **Store** - Persistent long-term memory across conversations
-- **Stream Writer** - Stream custom updates as tools execute
-- **Config** - RunnableConfig for the execution
-- **Tool Call ID** - ID of the current tool call
+- **状态** - 在执行过程中流动的可变数据（消息、计数器、自定义字段）
+- **上下文** - 不可变配置，如用户ID、会话详细信息或特定于应用程序的配置
+- **存储** - 跨对话的持久性长期记忆
+- **流写入器** - 在工具执行时流式传输自定义更新
+- **配置** - 运行的 RunnableConfig
+- **工具调用 ID** - 当前工具调用的 ID
 
 ### ToolRuntime
 
-Use `ToolRuntime` to access all runtime information in a single parameter. Simply add `runtime: ToolRuntime` to your tool signature, and it will be automatically injected without being exposed to the LLM.
+使用 `ToolRuntime` 在单个参数中访问所有运行时信息。只需将 `runtime: ToolRuntime` 添加到您的工具签名中，它将被自动注入，而不会暴露给 LLM。
 
 <Info>
-**`ToolRuntime`**: A unified parameter that provides tools access to state, context, store, streaming, config, and tool call ID. This replaces the older pattern of using separate @[`InjectedState`], @[`InjectedStore`], @[`get_runtime`], and @[`InjectedToolCallId`] annotations.
+**`ToolRuntime`**：一个统一的参数，为工具提供对状态、上下文、存储、流、配置和工具调用 ID 的访问。这取代了旧的使用单独的 @[`InjectedState`]、@[`InjectedStore`]、@[`get_runtime`] 和 @[`InjectedToolCallId`] 注解的模式。
 </Info>
 
 :::python
-**Accessing state:**
+**访问状态：**
 
-Tools can access the current graph state using `ToolRuntime`:
+工具可以使用 `ToolRuntime` 访问当前的图状态：
 
 ```python wrap
 from langchain.tools import tool, ToolRuntime
@@ -197,12 +197,12 @@ def get_user_preference(
 ```
 
 <Warning>
-The `tool_runtime` parameter is hidden from the model. For the example above, the model only sees `pref_name` in the tool schema - `tool_runtime` is *not* included in the request.
+`tool_runtime` 参数对模型是隐藏的。对于上面的例子，模型在工具模式中只看到 `pref_name` - `tool_runtime` *不*包含在请求中。
 </Warning>
 
-**Updating state:**
+**更新状态：**
 
-Use @[`Command`] to update the agent's state or control the graph's execution flow:
+使用 @[`Command`] 来更新智能体的状态或控制图的执行流程：
 
 ```python wrap
 from langgraph.types import Command
@@ -232,12 +232,12 @@ def update_user_name(
 ```
 :::
 
-#### Context
+#### 上下文
 
-Access immutable configuration and contextual data like user IDs, session details, or application-specific configuration through `runtime.context`.
+通过 `runtime.context` 访问不可变配置和上下文数据，如用户ID、会话详细信息或特定于应用程序的配置。
 
 :::python
-Tools can access runtime context through `ToolRuntime`:
+工具可以通过 `ToolRuntime` 访问运行时上下文：
 
 ```python wrap
 from dataclasses import dataclass
@@ -291,7 +291,7 @@ result = agent.invoke(
 :::
 
 :::js
-Tools can access an agent's runtime context through the `config` parameter:
+工具可以通过 `config` 参数访问智能体的运行时上下文：
 
 ```ts wrap
 import * as z from "zod"
@@ -321,7 +321,7 @@ const agent = createAgent({
 
 const result = await agent.invoke(
   {
-    messages: [{ role: "user", content: "What is my name?" }]
+    messages: [{ role: "user", "content": "What is my name?" }]
   },
   {
     context: { user_name: "John Smith" }
@@ -330,12 +330,12 @@ const result = await agent.invoke(
 ```
 :::
 
-#### Memory (Store)
+#### 记忆（存储）
 
-Access persistent data across conversations using the store. The store is accessed via `runtime.store` and allows you to save and retrieve user-specific or application-specific data.
+使用存储访问跨对话的持久性数据。存储通过 `runtime.store` 访问，允许您保存和检索用户特定或应用程序特定的数据。
 
 :::python
-Tools can access and update the store through `ToolRuntime`:
+工具可以通过 `ToolRuntime` 访问和更新存储：
 
 ```python wrap expandable
 from typing import Any
@@ -458,9 +458,9 @@ console.log(result);
 ```
 :::
 
-#### Stream Writer
+#### 流写入器
 
-Stream custom updates from tools as they execute using `runtime.stream_writer`. This is useful for providing real-time feedback to users about what a tool is doing.
+在工具执行时，使用 `runtime.stream_writer` 流式传输自定义更新。这对于向用户提供关于工具正在执行的操作的实时反馈非常有用。
 
 :::python
 ```python wrap
@@ -479,7 +479,7 @@ def get_weather(city: str, runtime: ToolRuntime) -> str:
 ```
 
 <Note>
-If you use `runtime.stream_writer` inside your tool, the tool must be invoked within a LangGraph execution context. See [Streaming](/oss/langchain/streaming) for more details.
+如果您在工具内部使用 `runtime.stream_writer`，则必须在 LangGraph 执行上下文中调用该工具。有关更多详细信息，请参阅[流式传输](/oss/langchain/streaming)。
 </Note>
 :::
 
@@ -508,4 +508,3 @@ const getWeather = tool(
 );
 ```
 :::
-

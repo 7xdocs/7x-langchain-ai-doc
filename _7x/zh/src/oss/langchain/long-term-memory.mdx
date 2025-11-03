@@ -4,18 +4,17 @@ title: Long-term memory
 
 
 
-## Overview
+## 概述
 
-LangChain agents use [LangGraph persistence](/oss/langgraph/persistence#memory-store) to enable long-term memory. This is a more advanced topic and requires knowledge of LangGraph to use.
+LangChain 代理使用 [LangGraph 持久化](/oss/langgraph/persistence#memory-store) 来实现长期记忆。这是一个较为高级的主题，需要具备 LangGraph 相关知识才能使用。
 
+## 记忆存储
 
-## Memory storage
+LangGraph 将长期记忆以 JSON 文档的形式存储在 [存储库](/oss/langgraph/persistence#memory-store) 中。
 
-LangGraph stores long-term memories as JSON documents in a [store](/oss/langgraph/persistence#memory-store).
+每段记忆都组织在一个自定义的 `namespace`（类似于文件夹）和一个唯一的 `key`（类似于文件名）下。命名空间通常包含用户或组织 ID 或其他便于组织信息的标签。
 
-Each memory is organized under a custom `namespace` (similar to a folder) and a distinct `key` (like a file name). Namespaces often include user or org IDs or other labels that makes it easier to organize information.
-
-This structure enables hierarchical organization of memories. Cross-namespace searching is then supported through content filters.
+这种结构支持记忆的层次化组织。然后通过内容过滤器支持跨命名空间的搜索。
 
 :::python
 ```python
@@ -93,12 +92,12 @@ const items = await store.search( // [!code highlight]
 ```
 :::
 
-For more information about the memory store, see the [Persistence](/oss/langgraph/persistence#memory-store) guide.
+有关记忆存储的更多信息，请参阅 [持久化](/oss/langgraph/persistence#memory-store) 指南。
 
-## Read long-term memory in tools
+## 在工具中读取长期记忆
 
 :::python
-```python A tool the agent can use to look up user information
+```python 一个代理可以用来查找用户信息的工具
 from dataclasses import dataclass
 
 from langchain_core.runnables import RunnableConfig
@@ -152,7 +151,7 @@ agent.invoke(
 :::
 
 :::js
-```typescript A tool the agent can use to look up user information
+```typescript 一个代理可以用来查找用户信息的工具
 import * as z from "zod";
 import { createAgent, tool } from "langchain";
 import { InMemoryStore, type Runtime } from "@langchain/langgraph";
@@ -202,7 +201,7 @@ const agent = createAgent({
 
 // Run the agent
 const result = await agent.invoke(
-    { messages: [{ role: "user", content: "look up user information" }] },
+    { messages: [{ role: "user", "content: "look up user information" }] },
     { context: { userId: "user_123" } } // [!code highlight]
 );
 
@@ -218,10 +217,10 @@ console.log(result.messages.at(-1)?.content);
 :::
 
 <a id="write-long-term"></a>
-## Write long-term memory from tools
+## 从工具写入长期记忆
 
 :::python
-```python Example of a tool that updates user information
+```python 一个更新用户信息的工具示例
 from dataclasses import dataclass
 from typing_extensions import TypedDict
 
@@ -273,7 +272,7 @@ store.get(("users",), "user_123").value
 :::
 
 :::js
-```typescript Example of a tool that updates user information
+```typescript 一个更新用户信息的工具示例
 import * as z from "zod";
 import { tool, createAgent, type AgentRuntime } from "langchain";
 import { InMemoryStore, type Runtime } from "@langchain/langgraph";
@@ -317,7 +316,7 @@ const agent = createAgent({
 
 // Run the agent
 await agent.invoke(
-    { messages: [{ role: "user", content: "My name is John Smith" }] },
+    { messages: [{ role: "user", "content": "My name is John Smith" }] },
     // userId passed in context to identify whose information is being updated
     { context: { userId: "user_123" } } // [!code highlight]
 );

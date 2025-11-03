@@ -6,9 +6,9 @@ title: Structured output
 
 :::python
 
-Structured output allows agents to return data in a specific, predictable format. Instead of parsing natural language responses, you get structured data in the form of JSON objects, Pydantic models, or dataclasses that your application can directly use.
+结构化输出允许代理以特定的、可预测的格式返回数据。您无需解析自然语言响应，而是以 JSON 对象、Pydantic 模型或数据类的形式获取结构化数据，您的应用程序可以直接使用这些数据。
 
-LangChain's @[`create_agent`] handles structured output automatically. The user sets their desired structured output schema, and when the model generates the structured data, it's captured, validated, and returned in the `'structured_response'` key of the agent's state.
+LangChain 的 @[`create_agent`] 自动处理结构化输出。用户设置他们期望的结构化输出模式，当模型生成结构化数据时，它会被捕获、验证并返回到代理状态的 `'structured_response'` 键中。
 
 ```python
 def create_agent(
@@ -20,24 +20,24 @@ def create_agent(
     ]
 ```
 
-## Response Format
-Controls how the agent returns structured data:
+## 响应格式
+控制代理如何返回结构化数据：
 
-- **`ToolStrategy[StructuredResponseT]`**: Uses tool calling for structured output
-- **`ProviderStrategy[StructuredResponseT]`**: Uses provider-native structured output
-- **`type[StructuredResponseT]`**: Schema type - automatically selects best strategy based on model capabilities
-- **`None`**: No structured output
+- **`ToolStrategy[StructuredResponseT]`**：使用工具调用来实现结构化输出
+- **`ProviderStrategy[StructuredResponseT]`**：使用提供商原生的结构化输出
+- **`type[StructuredResponseT]`**：模式类型 - 根据模型能力自动选择最佳策略
+- **`None`**：无结构化输出
 
-When a schema type is provided directly, LangChain automatically chooses:
-- `ProviderStrategy` for models supporting native structured output (e.g. [OpenAI](/oss/integrations/providers/openai), [Grok](/oss/integrations/providers/xai))
-- `ToolStrategy` for all other models
+当直接提供模式类型时，LangChain 会自动选择：
+- 对于支持原生结构化输出的模型（例如 [OpenAI](/oss/integrations/providers/openai), [Grok](/oss/integrations/providers/xai)）使用 `ProviderStrategy`
+- 对于所有其他模型使用 `ToolStrategy`
 
-The structured response is returned in the `structured_response` key of the agent's final state.
+结构化响应在代理最终状态的 `structured_response` 键中返回。
 :::
 :::js
-Structured output allows agents to return data in a specific, predictable format. Instead of parsing natural language responses, you get typed structured data.
+结构化输出允许代理以特定的、可预测的格式返回数据。您无需解析自然语言响应，而是获取类型化的结构化数据。
 
-LangChain's prebuilt ReAct agent `createAgent` handles structured output automatically. The user sets their desired structured output schema, and when the model generates the structured data, it's captured, validated, and returned in the `structuredResponse` key of the agent's state.
+LangChain 预构建的 ReAct 代理 `createAgent` 自动处理结构化输出。用户设置他们期望的结构化输出模式，当模型生成结构化数据时，它会被捕获、验证并返回到代理状态的 `structuredResponse` 键中。
 
 ```ts
 type ResponseFormat = (
@@ -51,10 +51,10 @@ const agent = createAgent({
 })
 ```
 
-## Response Format
-    Controls how the agent returns structured data. You can provide either a Zod object or JSON schema. By default, the agent uses a tool calling strategy, in which the output is created by an additional tool call. Certain models support native structured output, in which case the agent will use that strategy instead.
+## 响应格式
+    控制代理如何返回结构化数据。您可以提供 Zod 对象或 JSON 模式。默认情况下，代理使用工具调用策略，其中输出通过额外的工具调用创建。某些模型支持原生结构化输出，在这种情况下，代理将改用该策略。
 
-    You can control the behavior by wrapping `ResponseFormat` in a `toolStrategy` or `providerStrategy` function call:
+    您可以通过将 `ResponseFormat` 包装在 `toolStrategy` 或 `providerStrategy` 函数调用中来控制此行为：
 
     ```ts
     import { toolStrategy, providerStrategy } from "langchain";
@@ -67,14 +67,14 @@ const agent = createAgent({
     })
     ```
 
-    The structured response is returned in the `structuredResponse` key of the agent's final state.
+    结构化响应在代理最终状态的 `structuredResponse` 键中返回。
 :::
 
-## Provider strategy
+## 提供商策略
 
-Some model providers support structured output natively through their APIs (currently only OpenAI and Grok). This is the most reliable method when available.
+一些模型提供商通过其 API 原生支持结构化输出（目前仅 OpenAI 和 Grok）。当可用时，这是最可靠的方法。
 
-To use this strategy, configure a `ProviderStrategy`:
+要使用此策略，请配置一个 `ProviderStrategy`：
 
 :::python
 ```python
@@ -83,14 +83,14 @@ class ProviderStrategy(Generic[SchemaT]):
 ```
 
 <ParamField path="schema" required>
-    The schema defining the structured output format. Supports:
-    - **Pydantic models**: `BaseModel` subclasses with field validation
-    - **Dataclasses**: Python dataclasses with type annotations
-    - **TypedDict**: Typed dictionary classes
-    - **JSON Schema**: Dictionary with JSON schema specification
+    定义结构化输出格式的模式。支持：
+    - **Pydantic 模型**：具有字段验证的 `BaseModel` 子类
+    - **数据类**：带有类型注解的 Python 数据类
+    - **TypedDict**：类型化字典类
+    - **JSON 模式**：带有 JSON 模式规范的字典
 </ParamField>
 
-LangChain automatically uses `ProviderStrategy` when you pass a schema type directly to @[`create_agent.response_format`][create_agent(response_format)] and the model supports native structured output:
+当您将模式类型直接传递给 @[`create_agent.response_format`][create_agent(response_format)] 并且模型支持原生结构化输出时，LangChain 会自动使用 `ProviderStrategy`：
 
 <CodeGroup>
     ```python Pydantic Model
@@ -207,12 +207,12 @@ function providerStrategy<StructuredResponseT>(
 ```
 
 <ParamField path="schema" required>
-    The schema defining the structured output format. Supports:
-    - **Zod Schema**: A zod schema
-    - **JSON Schema**: A JSON schema object
+    定义结构化输出格式的模式。支持：
+    - **Zod 模式**：一个 zod 模式
+    - **JSON 模式**：一个 JSON 模式对象
 </ParamField>
 
-LangChain automatically uses `ProviderStrategy` when you pass a schema type directly to `createAgent.responseFormat` and the model supports native structured output:
+当您将模式类型直接传递给 `createAgent.responseFormat` 并且模型支持原生结构化输出时，LangChain 会自动使用 `ProviderStrategy`：
 
 <CodeGroup>
     ```ts Zod Schema
@@ -269,24 +269,24 @@ LangChain automatically uses `ProviderStrategy` when you pass a schema type dire
 </CodeGroup>
 :::
 
-Provider-native structured output provides high reliability and strict validation because the model provider enforces the schema. Use it when available.
+提供商原生的结构化输出提供了高可靠性和严格的验证，因为模型提供商会强制执行模式。在可用时请使用它。
 
 :::python
 <Note>
-    If the provider natively supports structured output for your model choice, it is functionally equivalent to write `response_format=ProductReview` instead of `response_format=ToolStrategy(ProductReview)`. In either case, if structured output is not supported, the agent will fall back to a tool calling strategy.
+    如果提供商对您选择的模型原生支持结构化输出，那么编写 `response_format=ProductReview` 与编写 `response_format=ToolStrategy(ProductReview)` 在功能上是等效的。在任何一种情况下，如果不支持结构化输出，代理将回退到工具调用策略。
 </Note>
 :::
 :::js
 <Note>
-    If the provider natively supports structured output for your model choice, it is functionally equivalent to write `responseFormat: contactInfoSchema` instead of `responseFormat: toolStrategy(contactInfoSchema)`. In either case, if structured output is not supported, the agent will fall back to a tool calling strategy.
+    如果提供商对您选择的模型原生支持结构化输出，那么编写 `responseFormat: contactInfoSchema` 与编写 `responseFormat: toolStrategy(contactInfoSchema)` 在功能上是等效的。在任何一种情况下，如果不支持结构化输出，代理将回退到工具调用策略。
 </Note>
 :::
 
-## Tool calling strategy
+## 工具调用策略
 
-For models that don't support native structured output, LangChain uses tool calling to achieve the same result. This works with all models that support tool calling, which is most modern models.
+对于不支持原生结构化输出的模型，LangChain 使用工具调用来实现相同的结果。这适用于所有支持工具调用的模型，也就是大多数现代模型。
 
-To use this strategy, configure a `ToolStrategy`:
+要使用此策略，请配置一个 `ToolStrategy`：
 
 :::python
 ```python
@@ -303,28 +303,28 @@ class ToolStrategy(Generic[SchemaT]):
 ```
 
 <ParamField path="schema" required>
-    The schema defining the structured output format. Supports:
-    - **Pydantic models**: `BaseModel` subclasses with field validation
-    - **Dataclasses**: Python dataclasses with type annotations
-    - **TypedDict**: Typed dictionary classes
-    - **JSON Schema**: Dictionary with JSON schema specification
-    - **Union types**: Multiple schema options. The model will choose the most appropriate schema based on the context.
+    定义结构化输出格式的模式。支持：
+    - **Pydantic 模型**：具有字段验证的 `BaseModel` 子类
+    - **数据类**：带有类型注解的 Python 数据类
+    - **TypedDict**：类型化字典类
+    - **JSON 模式**：带有 JSON 模式规范的字典
+    - **联合类型**：多个模式选项。模型将根据上下文选择最合适的模式。
 </ParamField>
 
 <ParamField path="tool_message_content">
-    Custom content for the tool message returned when structured output is generated.
-    If not provided, defaults to a message showing the structured response data.
+    生成结构化输出时返回的工具消息的自定义内容。
+    如果未提供，则默认为显示结构化响应数据的消息。
 </ParamField>
 
 <ParamField path="handle_errors">
-    Error handling strategy for structured output validation failures. Defaults to `True`.
+    结构化输出验证失败的错误处理策略。默认为 `True`。
 
-    - **`True`**: Catch all errors with default error template
-    - **`str`**: Catch all errors with this custom message
-    - **`type[Exception]`**: Only catch this exception type with default message
-    - **`tuple[type[Exception], ...]`**: Only catch these exception types with default message
-    - **`Callable[[Exception], str]`**: Custom function that returns error message
-    - **`False`**: No retry, let exceptions propagate
+    - **`True`**：使用默认错误模板捕获所有错误
+    - **`str`**：使用此自定义消息捕获所有错误
+    - **`type[Exception]`**：仅捕获此异常类型并使用默认消息
+    - **`tuple[type[Exception], ...]`**：仅捕获这些异常类型并使用默认消息
+    - **`Callable[[Exception], str]`**：返回错误消息的自定义函数
+    - **`False`**：不重试，让异常传播
 </ParamField>
 
 <CodeGroup>
@@ -482,9 +482,9 @@ class ToolStrategy(Generic[SchemaT]):
     ```
 </CodeGroup>
 
-### Custom tool message content
+### 自定义工具消息内容
 
-The `tool_message_content` parameter allows you to customize the message that appears in the conversation history when structured output is generated:
+`tool_message_content` 参数允许您自定义生成结构化输出时出现在对话历史中的消息：
 
 ```python
 from pydantic import BaseModel, Field
@@ -531,7 +531,7 @@ Name: MeetingAction
 Action item captured and added to meeting notes!
 ```
 
-Without `tool_message_content`, our final @[`ToolMessage`] would be:
+如果没有 `tool_message_content`，我们的最终 @[`ToolMessage`] 将是：
 ```
 ================================= Tool Message =================================
 Name: MeetingAction
@@ -551,22 +551,22 @@ function toolStrategy<StructuredResponseT>(
 ```
 
 <ParamField path="schema" required>
-    The schema defining the structured output format. Supports:
-    - **Zod Schema**: A zod schema
-    - **JSON Schema**: A JSON schema object
+    定义结构化输出格式的模式。支持：
+    - **Zod 模式**：一个 zod 模式
+    - **JSON 模式**：一个 JSON 模式对象
 </ParamField>
 
 <ParamField path="options.toolMessageContent">
-    Custom content for the tool message returned when structured output is generated.
-    If not provided, defaults to a message showing the structured response data.
+    生成结构化输出时返回的工具消息的自定义内容。
+    如果未提供，则默认为显示结构化响应数据的消息。
 </ParamField>
 
 <ParamField path="options.handleError">
-    Options parameter containing an optional `handleError` parameter for customizing the error handling strategy.
+    包含可选 `handleError` 参数的选项参数，用于自定义错误处理策略。
 
-    - **`true`**: Catch all errors with default error template (default)
-    - **`False`**: No retry, let exceptions propagate
-    - **`(error: ToolStrategyError) => string | Promise<string>`**: retry with the provided message or throw the error
+    - **`true`**：使用默认错误模板捕获所有错误（默认）
+    - **`False`**：不重试，让异常传播
+    - **`(error: ToolStrategyError) => string | Promise<string>`**：使用提供的消息重试或抛出错误
 </ParamField>
 
 <CodeGroup>
@@ -666,9 +666,9 @@ function toolStrategy<StructuredResponseT>(
     ```
 </CodeGroup>
 
-### Custom tool message content
+### 自定义工具消息内容
 
-The `toolMessageContent` parameter allows you to customize the message that appears in the conversation history when structured output is generated:
+`toolMessageContent` 参数允许您自定义生成结构化输出时出现在对话历史中的消息：
 
 ```ts
 import * as z from "zod";
@@ -705,7 +705,7 @@ console.log(result);
  */
 ```
 
-Without `toolMessageContent`, we'd see:
+如果没有 `toolMessageContent`，我们会看到：
 
 ```ts
 # console.log(result);
@@ -721,13 +721,13 @@ Without `toolMessageContent`, we'd see:
 ```
 :::
 
-### Error handling
+### 错误处理
 
-Models can make mistakes when generating structured output via tool calling. LangChain provides intelligent retry mechanisms to handle these errors automatically.
+模型在通过工具调用生成结构化输出时可能会出错。LangChain 提供了智能的重试机制来自动处理这些错误。
 
-#### Multiple structured outputs error
+#### 多个结构化输出错误
 
-When a model incorrectly calls multiple structured output tools, the agent provides error feedback in a @[`ToolMessage`] and prompts the model to retry:
+当模型错误地调用多个结构化输出工具时，代理会在 @[`ToolMessage`] 中提供错误反馈，并提示模型重试：
 
 :::python
 ```python
@@ -845,9 +845,9 @@ console.log(result);
 ```
 :::
 
-#### Schema validation error
+#### 模式验证错误
 
-When structured output doesn't match the expected schema, the agent provides specific error feedback:
+当结构化输出与预期模式不匹配时，代理会提供具体的错误反馈：
 
 :::python
 ```python
@@ -902,18 +902,18 @@ Name: ProductRating
 Returning structured response: {'rating': 5, 'comment': 'Amazing product'}
 ```
 
-#### Error handling strategies
+#### 错误处理策略
 
-You can customize how errors are handled using the `handle_errors` parameter:
+您可以使用 `handle_errors` 参数自定义错误处理方式：
 
-**Custom error message:**
+**自定义错误消息：**
 ```python
 ToolStrategy(
     schema=ProductRating,
     handle_errors="Please provide a valid rating between 1-5 and include a comment."
 )
 ```
-If `handle_errors` is a string, the agent will *always* prompt the model to re-try with a fixed tool message:
+如果 `handle_errors` 是一个字符串，代理将*始终*提示模型使用固定的工具消息重试：
 ```
 ================================= Tool Message =================================
 Name: ProductRating
@@ -921,7 +921,7 @@ Name: ProductRating
 Please provide a valid rating between 1-5 and include a comment.
 ```
 
-**Handle specific exceptions only:**
+**仅处理特定异常：**
 ```python
 ToolStrategy(
     schema=ProductRating,
@@ -929,9 +929,9 @@ ToolStrategy(
 )
 ```
 
-If `handle_errors` is an exception type, the agent will only retry (using the default error message) if the exception raised is the specified type. In all other cases, the exception will be raised.
+如果 `handle_errors` 是一个异常类型，代理将仅在引发的异常是指定类型时重试（使用默认错误消息）。在所有其他情况下，异常将被抛出。
 
-**Handle multiple exception types:**
+**处理多个异常类型：**
 ```python
 ToolStrategy(
     schema=ProductRating,
@@ -939,9 +939,9 @@ ToolStrategy(
 )
 ```
 
-If `handle_errors` is a tuple of exceptions, the agent will only retry (using the default error message) if the exception raised is one of the specified types. In all other cases, the exception will be raised.
+如果 `handle_errors` 是一个异常元组，代理将仅在引发的异常是其中一个指定类型时重试（使用默认错误消息）。在所有其他情况下，异常将被抛出。
 
-**Custom error handler function:**
+**自定义错误处理函数：**
 ```python
 def custom_error_handler(error: Exception) -> str:
     if isinstance(error, StructuredOutputValidationError):
@@ -957,7 +957,7 @@ ToolStrategy(
 )
 ```
 
-On `StructuredOutputValidationError`:
+对于 `StructuredOutputValidationError`：
 ```
 ================================= Tool Message =================================
 Name: ToolStrategy
@@ -965,7 +965,7 @@ Name: ToolStrategy
 There was an issue with the format. Try again.
 ```
 
-On `MultipleStructuredOutputsError`:
+对于 `MultipleStructuredOutputsError`：
 
 ```
 ================================= Tool Message =================================
@@ -974,7 +974,7 @@ Name: ToolStrategy
 Multiple structured outputs were returned. Pick the most relevant one.
 ```
 
-On other errors:
+对于其他错误：
 
 ```
 ================================= Tool Message =================================
@@ -983,7 +983,7 @@ Name: ToolStrategy
 Error: <error message>
 ```
 
-**No error handling:**
+**无错误处理：**
 ```python
 response_format = ToolStrategy(
     schema=ProductRating,
@@ -1032,21 +1032,21 @@ console.log(result);
  */
 ```
 
-#### Error handling strategies
+#### 错误处理策略
 
-You can customize how errors are handled using the `handleErrors` parameter:
+您可以使用 `handleErrors` 参数自定义错误处理方式：
 
-**Custom error message:**
+**自定义错误消息：**
 ```ts
 const responseFormat = toolStrategy(ProductRating, {
     handleError: "Please provide a valid rating between 1-5 and include a comment."
 )
 
-// Error message becomes:
+// 错误消息变为：
 // { role: "tool", content: "Please provide a valid rating between 1-5 and include a comment." }
 ```
 
-**Handle specific exceptions only:**
+**仅处理特定异常：**
 ```ts
 import { ToolInputParsingException } from "@langchain/core/tools";
 
@@ -1059,11 +1059,11 @@ const responseFormat = toolStrategy(ProductRating, {
     }
 )
 
-// Only validation errors get retried with default message:
+// 只有验证错误会使用默认消息重试：
 // { role: "tool", content: "Error: Failed to parse structured output for tool 'ProductRating': ...\n Please fix your mistakes." }
 ```
 
-**Handle multiple exception types:**
+**处理多个异常类型：**
 ```ts
 const responseFormat = toolStrategy(ProductRating, {
     handleError: (error: ToolStrategyError) => {
@@ -1078,7 +1078,7 @@ const responseFormat = toolStrategy(ProductRating, {
 )
 ```
 
-**No error handling:**
+**无错误处理：**
 ```ts
 const responseFormat = toolStrategy(ProductRating, {
     handleError: false  // All errors raised

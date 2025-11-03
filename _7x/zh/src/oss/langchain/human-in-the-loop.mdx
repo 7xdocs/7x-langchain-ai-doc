@@ -4,37 +4,37 @@ title: Human-in-the-loop
 
 
 
-The Human-in-the-Loop (HITL) middleware lets you add human oversight to agent tool calls.
-When a model proposes an action that might require review — for example, writing to a file or executing SQL — the middleware can pause execution and wait for a decision.
+Human-in-the-Loop（HITL）中间件允许您对智能体工具调用添加人工监督。
+当模型提出可能需要审查的操作时——例如写入文件或执行 SQL——该中间件可以暂停执行并等待决策。
 
-It does this by checking each tool call against a configurable policy. If intervention is needed, the middleware issues an @[interrupt] that halts execution. The graph state is saved using LangGraph’s [persistence layer](/oss/langgraph/persistence), so execution can pause safely and resume later.
+它通过根据可配置的策略检查每个工具调用来实现此功能。如果需要干预，中间件会发出一个 @[interrupt]，停止执行。图状态使用 LangGraph 的 [持久层](/oss/langgraph/persistence) 保存，因此执行可以安全地暂停并在之后恢复。
 
-A human decision then determines what happens next: the action can be approved as-is (`approve`), modified before running (`edit`), or rejected with feedback (`reject`).
+然后，人工决策决定接下来会发生什么：操作可以按原样批准（`approve`），在运行前修改（`edit`），或带有反馈地拒绝（`reject`）。
 
-## Interrupt decision types
+## 中断决策类型
 
-The middleware defines three built-in ways a human can respond to an interrupt:
+该中间件定义了三种内置的人工响应中断的方式：
 
-| Decision Type | Description                                                               | Example Use Case                                    |
-|---------------|---------------------------------------------------------------------------|-----------------------------------------------------|
-| ✅ `approve`   | The action is approved as-is and executed without changes.                | Send an email draft exactly as written              |
-| ✏️ `edit`     | The tool call is executed with modifications.                             | Change the recipient before sending an email        |
-| ❌ `reject`    | The tool call is rejected, with an explanation added to the conversation. | Reject an email draft and explain how to rewrite it |
+| 决策类型     | 描述                                                                 | 示例用例                                         |
+|--------------|---------------------------------------------------------------------|--------------------------------------------------|
+| ✅ `approve` | 操作按原样批准并执行，不作更改。                                        | 按原样发送邮件草稿                               |
+| ✏️ `edit`   | 工具调用经过修改后执行。                                                | 在发送邮件前更改收件人                           |
+| ❌ `reject`  | 工具调用被拒绝，并在对话中添加解释。                                    | 拒绝邮件草稿并解释如何重写                       |
 
-The available decision types for each tool depend on the policy you configure in `interrupt_on`.
-When multiple tool calls are paused at the same time, each action requires a separate decision.
-Decisions must be provided in the same order as the actions appear in the interrupt request.
+每个工具的可用决策类型取决于您在 `interrupt_on` 中配置的策略。
+当多个工具调用同时暂停时，每个操作都需要单独的决策。
+决策必须按照中断请求中操作出现的顺序提供。
 
 <Tip>
-When **editing** tool arguments, make changes conservatively. Significant modifications to the original arguments may cause the model to re-evaluate its approach and potentially execute the tool multiple times or take unexpected actions.
+**编辑** 工具参数时，请保守地进行更改。对原始参数的重大修改可能导致模型重新评估其方法，并可能多次执行该工具或采取意外操作。
 </Tip>
 
 
-## Configuring interrupts
+## 配置中断
 
-To use HITL, add the middleware to the agent’s `middleware` list when creating the agent.
+要使用 HITL，请在创建智能体时将该中间件添加到智能体的 `middleware` 列表中。
 
-You configure it with a mapping of tool actions to the decision types that are allowed for each action. The middleware will interrupt execution when a tool call matches an action in the mapping.
+您需要配置一个工具操作到每个操作允许的决策类型的映射。当工具调用与映射中的操作匹配时，中间件将中断执行。
 
 :::python
 ```python
@@ -49,19 +49,19 @@ agent = create_agent(
     middleware=[
         HumanInTheLoopMiddleware( # [!code highlight]
             interrupt_on={
-                "write_file": True,  # All decisions (approve, edit, reject) allowed
-                "execute_sql": {"allowed_decisions": ["approve", "reject"]},  # No editing allowed
-                # Safe operation, no approval needed
+                "write_file": True,  # 允许所有决策（approve, edit, reject）
+                "execute_sql": {"allowed_decisions": ["approve", "reject"]},  # 不允许编辑
+                # 安全操作，无需批准
                 "read_data": False,
             },
-            # Prefix for interrupt messages - combined with tool name and args to form the full message
-            # e.g., "Tool execution pending approval: execute_sql with query='DELETE FROM...'"
-            # Individual tools can override this by specifying a "description" in their interrupt config
+            # 中断消息的前缀 - 与工具名称和参数组合形成完整消息
+            # 例如："Tool execution pending approval: execute_sql with query='DELETE FROM...'"
+            # 单个工具可以通过在其中断配置中指定 "description" 来覆盖此设置
             description_prefix="Tool execution pending approval",
         ),
     ],
-    # Human-in-the-loop requires checkpointing to handle interrupts.
-    # In production, use a persistent checkpointer like AsyncPostgresSaver.
+    # Human-in-the-loop 需要检查点来处理中断。
+    # 在生产环境中，使用持久化检查点保存器，如 AsyncPostgresSaver。
     checkpointer=InMemorySaver(),  # [!code highlight]
 )
 ```
@@ -78,23 +78,23 @@ const agent = createAgent({
     middleware: [
         humanInTheLoopMiddleware({
             interruptOn: {
-                write_file: true, // All decisions (approve, edit, reject) allowed
+                write_file: true, // 允许所有决策（approve, edit, reject）
                 execute_sql: {
                     allowedDecisions: ["approve", "reject"],
-                    // No editing allowed
+                    // 不允许编辑
                     description: "🚨 SQL execution requires DBA approval",
                 },
-                // Safe operation, no approval needed
+                // 安全操作，无需批准
                 read_data: false,
             },
-            // Prefix for interrupt messages - combined with tool name and args to form the full message
-            // e.g., "Tool execution pending approval: execute_sql with query='DELETE FROM...'"
-            // Individual tools can override this by specifying a "description" in their interrupt config
+            // 中断消息的前缀 - 与工具名称和参数组合形成完整消息
+            // 例如："Tool execution pending approval: execute_sql with query='DELETE FROM...'"
+            // 单个工具可以通过在其中断配置中指定 "description" 来覆盖此设置
             descriptionPrefix: "Tool execution pending approval",
         }),
     ],
-    // Human-in-the-loop requires checkpointing to handle interrupts.
-    // In production, use a persistent checkpointer like AsyncPostgresSaver.
+    // Human-in-the-loop 需要检查点来处理中断。
+    // 在生产环境中，使用持久化检查点保存器，如 AsyncPostgresSaver。
     checkpointer: new MemorySaver(), // [!code highlight]
 });
 ```
@@ -102,28 +102,28 @@ const agent = createAgent({
 
 
 <Info>
-    You must configure a checkpointer to persist the graph state across interrupts.
-    In production, use a persistent checkpointer like @[`AsyncPostgresSaver`]. For testing or prototyping, use @[`InMemorySaver`].
+    您必须配置一个检查点保存器，以便在中断之间持久化图状态。
+    在生产环境中，使用持久化检查点保存器，如 @[`AsyncPostgresSaver`]。对于测试或原型设计，使用 @[`InMemorySaver`]。
 
-    When invoking the agent, pass a `config` that includes the **thread ID** to associate execution with a conversation thread.
-    See the [LangGraph interrupts documentation](/oss/langgraph/interrupts) for details.
+    在调用智能体时，传递一个包含 **线程 ID** 的 `config`，以将执行与对话线程关联。
+    详情请参阅 [LangGraph 中断文档](/oss/langgraph/interrupts)。
 </Info>
 
 
-## Responding to interrupts
+## 响应中断
 
-When you invoke the agent, it runs until it either completes or an interrupt is raised. An interrupt is triggered when a tool call matches the policy you configured in `interrupt_on`. In that case, the invocation result will include an `__interrupt__` field with the actions that require review. You can then present those actions to a reviewer and resume execution once decisions are provided.
+当您调用智能体时，它会一直运行直到完成或引发中断。当工具调用与您在 `interrupt_on` 中配置的策略匹配时，会触发中断。在这种情况下，调用结果将包含一个 `__interrupt__` 字段，其中包含需要审查的操作。然后，您可以将这些操作呈现给审查者，并在提供决策后恢复执行。
 
 
 :::python
 ```python
 from langgraph.types import Command
 
-# Human-in-the-loop leverages LangGraph's persistence layer.
-# You must provide a thread ID to associate the execution with a conversation thread,
-# so the conversation can be paused and resumed (as is needed for human review).
+# Human-in-the-loop 利用 LangGraph 的持久层。
+# 您必须提供一个线程 ID 以将执行与对话线程关联，
+# 这样对话就可以暂停和恢复（这是人工审查所需要的）。
 config = {"configurable": {"thread_id": "some_id"}} # [!code highlight]
-# Run the graph until the interrupt is hit.
+# 运行图直到遇到中断。
 result = agent.invoke(
     {
         "messages": [
@@ -136,7 +136,7 @@ result = agent.invoke(
     config=config # [!code highlight]
 )
 
-# The interrupt contains the full HITL request with action_requests and review_configs
+# 中断包含完整的 HITL 请求，包括 action_requests 和 review_configs
 print(result['__interrupt__'])
 # > [
 # >    Interrupt(
@@ -159,12 +159,12 @@ print(result['__interrupt__'])
 # > ]
 
 
-# Resume with approval decision
+# 使用批准决策恢复执行
 agent.invoke(
     Command( # [!code highlight]
-        resume={"decisions": [{"type": "approve"}]}  # or "edit", "reject" [!code highlight]
+        resume={"decisions": [{"type": "approve"}]}  # 或 "edit", "reject" [!code highlight]
     ), # [!code highlight]
-    config=config # Same thread ID to resume the paused conversation
+    config=config # 相同的线程 ID 以恢复暂停的对话
 )
 ```
 :::
@@ -174,11 +174,11 @@ agent.invoke(
 import { HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 
-// You must provide a thread ID to associate the execution with a conversation thread,
-// so the conversation can be paused and resumed (as is needed for human review).
+// 您必须提供一个线程 ID 以将执行与对话线程关联，
+// 这样对话就可以暂停和恢复（这是人工审查所需要的）。
 const config = { configurable: { thread_id: "some_id" } }; // [!code highlight]
 
-// Run the graph until the interrupt is hit.
+// 运行图直到遇到中断。
 const result = await agent.invoke(
     {
         messages: [new HumanMessage("Delete old records from the database")],
@@ -187,7 +187,7 @@ const result = await agent.invoke(
 );
 
 
-// The interrupt contains the full HITL request with action_requests and review_configs
+// 中断包含完整的 HITL 请求，包括 action_requests 和 review_configs
 console.log(result.__interrupt__);
 // > [
 // >    Interrupt(
@@ -209,29 +209,28 @@ console.log(result.__interrupt__);
 // >    )
 // > ]
 
-// Resume with approval decision
+// 使用批准决策恢复执行
 await agent.invoke(
     new Command({ // [!code highlight]
-        resume: { decisions: [{ type: "approve" }] }, // or "edit", "reject" [!code highlight]
+        resume: { decisions: [{ type: "approve" }] }, // 或 "edit", "reject" [!code highlight]
     }), // [!code highlight]
-    config // Same thread ID to resume the paused conversation
+    config // 相同的线程 ID 以恢复暂停的对话
 );
 ```
 :::
 
-### Decision types
+### 决策类型
 
 <Tabs>
 <Tab title="✅ approve">
-Use `approve` to approve the tool call as-is and execute it without changes.
+使用 `approve` 按原样批准工具调用并执行，不作更改。
 
 :::python
 ```python
 agent.invoke(
     Command(
-        # Decisions are provided as a list, one per action under review.
-        # The order of decisions must match the order of actions
-        # listed in the `__interrupt__` request.
+        # 决策以列表形式提供，每个待审查操作一个。
+        # 决策的顺序必须与 `__interrupt__` 请求中列出的操作顺序匹配。
         resume={
             "decisions": [
                 {
@@ -240,7 +239,7 @@ agent.invoke(
             ]
         }
     ),
-    config=config  # Same thread ID to resume the paused conversation
+    config=config  # 相同的线程 ID 以恢复暂停的对话
 )
 ```
 :::
@@ -249,9 +248,8 @@ agent.invoke(
 ```typescript
 await agent.invoke(
     new Command({
-        // Decisions are provided as a list, one per action under review.
-        // The order of decisions must match the order of actions
-        // listed in the `__interrupt__` request.
+        // 决策以列表形式提供，每个待审查操作一个。
+        // 决策的顺序必须与 `__interrupt__` 请求中列出的操作顺序匹配。
         resume: {
             decisions: [
                 {
@@ -260,39 +258,38 @@ await agent.invoke(
             ]
         }
     }),
-    config  // Same thread ID to resume the paused conversation
+    config  // 相同的线程 ID 以恢复暂停的对话
 );
 ```
 :::
 </Tab>
 <Tab title="✏️ edit">
-    Use `edit` to modify the tool call before execution.
-    Provide the edited action with the new tool name and arguments.
+    使用 `edit` 在执行前修改工具调用。
+    提供编辑后的操作，包括新的工具名称和参数。
 
     :::python
     ```python
     agent.invoke(
         Command(
-            # Decisions are provided as a list, one per action under review.
-            # The order of decisions must match the order of actions
-            # listed in the `__interrupt__` request.
+            # 决策以列表形式提供，每个待审查操作一个。
+            # 决策的顺序必须与 `__interrupt__` 请求中列出的操作顺序匹配。
             resume={
                 "decisions": [
                     {
                         "type": "edit",
-                        # Edited action with tool name and args
+                        # 编辑后的操作，包含工具名称和参数
                         "edited_action": {
-                            # Tool name to call.
-                            # Will usually be the same as the original action.
+                            # 要调用的工具名称。
+                            # 通常与原始操作相同。
                             "name": "new_tool_name",
-                            # Arguments to pass to the tool.
+                            # 传递给工具的参数。
                             "args": {"key1": "new_value", "key2": "original_value"},
                         }
                     }
                 ]
             }
         ),
-        config=config  # Same thread ID to resume the paused conversation
+        config=config  # 相同的线程 ID 以恢复暂停的对话
     )
     ```
     :::
@@ -301,57 +298,55 @@ await agent.invoke(
     ```typescript
     await agent.invoke(
         new Command({
-            // Decisions are provided as a list, one per action under review.
-            // The order of decisions must match the order of actions
-            // listed in the `__interrupt__` request.
+            // 决策以列表形式提供，每个待审查操作一个。
+            // 决策的顺序必须与 `__interrupt__` 请求中列出的操作顺序匹配。
             resume: {
                 decisions: [
                     {
                         type: "edit",
-                        // Edited action with tool name and args
+                        // 编辑后的操作，包含工具名称和参数
                         editedAction: {
-                            // Tool name to call.
-                            // Will usually be the same as the original action.
+                            // 要调用的工具名称。
+                            // 通常与原始操作相同。
                             name: "new_tool_name",
-                            // Arguments to pass to the tool.
+                            // 传递给工具的参数。
                             args: { key1: "new_value", key2: "original_value" },
                         }
                     }
                 ]
             }
         }),
-        config  // Same thread ID to resume the paused conversation
+        config  // 相同的线程 ID 以恢复暂停的对话
     );
     ```
     :::
 
     <Tip>
-        When **editing** tool arguments, make changes conservatively. Significant modifications to the original arguments may cause the model to re-evaluate its approach and potentially execute the tool multiple times or take unexpected actions.
+        **编辑** 工具参数时，请保守地进行更改。对原始参数的重大修改可能导致模型重新评估其方法，并可能多次执行该工具或采取意外操作。
     </Tip>
 
 </Tab>
 
 <Tab title="❌ reject">
-    Use `reject` to reject the tool call and provide feedback instead of execution.
+    使用 `reject` 拒绝工具调用，并提供反馈而不是执行。
 
     :::python
     ```python
     agent.invoke(
         Command(
-            # Decisions are provided as a list, one per action under review.
-            # The order of decisions must match the order of actions
-            # listed in the `__interrupt__` request.
+            # 决策以列表形式提供，每个待审查操作一个。
+            # 决策的顺序必须与 `__interrupt__` 请求中列出的操作顺序匹配。
             resume={
                 "decisions": [
                     {
                         "type": "reject",
-                        # An explanation about why the action was rejected
+                        # 关于为什么拒绝该操作的解释
                         "message": "No, this is wrong because ..., instead do this ...",
                     }
                 ]
             }
         ),
-        config=config  # Same thread ID to resume the paused conversation
+        config=config  # 相同的线程 ID 以恢复暂停的对话
     )
     ```
     :::
@@ -360,31 +355,30 @@ await agent.invoke(
     ```typescript
     await agent.invoke(
         new Command({
-            // Decisions are provided as a list, one per action under review.
-            // The order of decisions must match the order of actions
-            // listed in the `__interrupt__` request.
+            // 决策以列表形式提供，每个待审查操作一个。
+            // 决策的顺序必须与 `__interrupt__` 请求中列出的操作顺序匹配。
             resume: {
                 decisions: [
                     {
                         type: "reject",
-                        // An explanation about why the action was rejected
+                        // 关于为什么拒绝该操作的解释
                         message: "No, this is wrong because ..., instead do this ...",
                     }
                 ]
             }
         }),
-        config  // Same thread ID to resume the paused conversation
+        config  // 相同的线程 ID 以恢复暂停的对话
     );
     ```
-    :::
+    ::>
 
-The `message` is added to the conversation as feedback to help the agent understand why the action was rejected and what it should do instead.
+`message` 作为反馈添加到对话中，以帮助智能体理解操作被拒绝的原因以及它应该做什么。
 
 ---
 
-### Multiple decisions
+### 多个决策
 
-When multiple actions are under review, provide a decision for each action in the same order as they appear in the interrupt:
+当多个操作待审查时，为每个操作提供一个决策，顺序与它们在中断中出现的顺序相同：
 
 :::python
 ```python
@@ -432,21 +426,20 @@ When multiple actions are under review, provide a decision for each action in th
 </Tabs>
 
 
-## Execution lifecycle
+## 执行生命周期
 
-The middleware defines an `after_model` hook that runs after the model generates a response but before any tool calls are executed:
+该中间件定义了一个 `after_model` 钩子，该钩子在模型生成响应之后、任何工具调用执行之前运行：
 
-1. The agent invokes the model to generate a response.
-2. The middleware inspects the response for tool calls.
-3. If any calls require human input, the middleware builds a `HITLRequest` with `action_requests` and `review_configs` and calls @[interrupt].
-4. The agent waits for human decisions.
-5. Based on the `HITLResponse` decisions, the middleware executes approved or edited calls, synthesizes @[ToolMessage]'s for rejected calls, and resumes execution.
+1. 智能体调用模型生成响应。
+2. 中间件检查响应中的工具调用。
+3. 如果有任何调用需要人工输入，中间件会构建一个包含 `action_requests` 和 `review_configs` 的 `HITLRequest` 并调用 @[interrupt]。
+4. 智能体等待人工决策。
+5. 根据 `HITLResponse` 决策，中间件执行批准或编辑的调用，为被拒绝的调用合成 @[ToolMessage]，并恢复执行。
 
 
 
-## Custom HITL logic
+## 自定义 HITL 逻辑
 
-For more specialized workflows, you can build custom HITL logic directly using the @[interrupt] primitive and [middleware](/oss/langchain/middleware) abstraction.
+对于更专业的工作流，您可以直接使用 @[interrupt] 原语和 [中间件](/oss/langchain/middleware) 抽象构建自定义 HITL 逻辑。
 
-Review the [execution lifecycle](#execution-lifecycle) above to understand how to integrate interrupts into the agent's operation.
-
+请查看上面的 [执行生命周期](#execution-lifecycle) 以了解如何将中断集成到智能体的操作中。

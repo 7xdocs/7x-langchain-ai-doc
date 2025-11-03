@@ -4,28 +4,28 @@ title: Test
 
 
 
-Agentic applications let an LLM decide its own next steps to solve a problem. That flexibility is powerful, but the model's black-box nature makes it hard to predict how a tweak in one part of your agent will affect the rest. To build production-ready agents, thorough testing is essential.
+智能体应用让大语言模型自行决定解决问题的后续步骤。这种灵活性非常强大，但模型的黑盒特性使得难以预测对智能体某部分的调整会如何影响其他部分。要构建生产就绪的智能体，全面的测试至关重要。
 
-There are a few approaches to testing your agents:
+测试智能体有几种方法：
 :::python
-- [Unit tests](#unit-testing) exercise small, deterministic pieces of your agent in isolation using in-memory fakes so you can assert exact behavior quickly and deterministically.
+- [单元测试](#unit-testing) 使用内存模拟对象独立测试智能体的小型、确定性部分，以便快速、确定地断言确切行为。
 :::
 :::js
-- Unit tests exercise small, deterministic pieces of your agent in isolation using in-memory fakes so you can assert exact behavior quickly and deterministically.
+- 单元测试使用内存模拟对象独立测试智能体的小型、确定性部分，以便快速、确定地断言确切行为。
 :::
-- [Integration tests](#integration-testing) test the agent using real network calls to confirm that components work together, credentials and schemas line up, and latency is acceptable.
+- [集成测试](#integration-testing) 使用真实网络调用测试智能体，以确认组件协同工作、凭证和模式匹配，以及延迟可接受。
 
-Agentic applications tend to lean more on integration because they chain multiple components together and must deal with flakiness due to the nondeterministic nature of LLMs.
+智能体应用往往更依赖集成测试，因为它们将多个组件链接在一起，并且必须处理由于LLM的非确定性特性带来的不稳定性。
 
 :::python
 
-## Unit Testing
+## 单元测试
 
-### Mocking Chat Model
+### 模拟聊天模型
 
-For logic not requiring API calls, you can use an in-memory stub for mocking responses.
+对于不需要API调用的逻辑，您可以使用内存存根来模拟响应。
 
-LangChain provides [`GenericFakeChatModel`](https://python.langchain.com/api_reference/core/language_models/langchain_core.language_models.fake_chat_models.GenericFakeChatModel.html) for mocking text responses. It accepts an iterator of responses (AIMessages or strings) and returns one per invocation. It supports both regular and streaming usage.
+LangChain 提供 [`GenericFakeChatModel`](https://python.langchain.com/api_reference/core/language_models/langchain_core.language_models.fake_chat_models.GenericFakeChatModel.html) 用于模拟文本响应。它接受一个响应迭代器（AIMessages 或字符串），每次调用返回一个。它支持常规和流式用法。
 
 ```python
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
@@ -39,16 +39,16 @@ model.invoke("hello")
 # AIMessage(content='', ..., tool_calls=[{'name': 'foo', 'args': {'bar': 'baz'}, 'id': 'call_1', 'type': 'tool_call'}])
 ```
 
-If we invoke the model again, it will return the next item in the iterator:
+如果我们再次调用模型，它将返回迭代器中的下一个项目：
 
 ```python
 model.invoke("hello, again!")
 # AIMessage(content='bar', ...)
 ```
 
-### InMemorySaver Checkpointer
+### InMemorySaver 检查点
 
-To enable persistence during testing, you can use the @[`InMemorySaver`] checkpointer. This allows you to simulate multiple turns to test state-dependent behavior:
+为了在测试期间启用持久化，您可以使用 @[`InMemorySaver`] 检查点。这允许您模拟多个轮次来测试依赖于状态的行为：
 
 ```python
 from langgraph.checkpoint.memory import InMemorySaver
@@ -59,33 +59,33 @@ agent = create_agent(
     checkpointer=InMemorySaver()
 )
 
-# First invocation
+# 第一次调用
 agent.invoke(HumanMessage(content="I live in Sydney, Australia."))
 
-# Second invocation: the first message is persisted (Sydney location), so the model returns GMT+10 time
+# 第二次调用：第一条消息被持久化（悉尼位置），因此模型返回 GMT+10 时间
 agent.invoke(HumanMessage(content="What's my local time?"))
 ```
 :::
 
-## Integration Testing
+## 集成测试
 
-Many agent behaviors only emerge when using a real LLM, such as which tool the agent decides to call, how it formats responses, or whether a prompt modification affects the entire execution trajectory. LangChain's [`agentevals`](https://github.com/langchain-ai/agentevals) package provides evaluators specifically designed for testing agent trajectories with live models.
+许多智能体行为只有在使用真实LLM时才会出现，例如智能体决定调用哪个工具、如何格式化响应，或者提示修改是否影响整个执行轨迹。LangChain的 [`agentevals`](https://github.com/langchain-ai/agentevals) 包提供了专门设计用于使用实时模型测试智能体轨迹的评估器。
 
-AgentEvals lets you easily evaluate the trajectory of your agent (the exact sequence of messages, including tool calls) by performing a **trajectory match** or by using an **LLM judge**:
+AgentEvals 允许您通过执行**轨迹匹配**或使用**LLM法官**来轻松评估智能体的轨迹（消息的确切序列，包括工具调用）：
 
-<Card title="Trajectory match" icon="equals" arrow="true" href="#trajectory-match-evaluator">
-Hard-code a reference trajectory for a given input and validate the run via a step-by-step comparison.
+<Card title="轨迹匹配" icon="equals" arrow="true" href="#trajectory-match-evaluator">
+为给定输入硬编码参考轨迹，并通过逐步比较验证运行。
 
-Ideal for testing well-defined workflows where you know the expected behavior. Use when you have specific expectations about which tools should be called and in what order. This approach is deterministic, fast, and cost-effective since it doesn't require additional LLM calls.
+适用于测试明确定义的工作流，其中您了解预期行为。当您对应该调用哪些工具以及调用顺序有特定期望时使用此方法。这种方法具有确定性、快速且成本效益高，因为它不需要额外的LLM调用。
 </Card>
 
-<Card title="LLM-as-judge" icon="gavel" arrow="true" href="#llm-as-judge-evaluator">
-Use a LLM to qualitatively validate your agent's execution trajectory. The "judge" LLM reviews the agent's decisions against a prompt rubric (which can include a reference trajectory).
+<Card title="LLM作为法官" icon="gavel" arrow="true" href="#llm-as-judge-evaluator">
+使用LLM定性验证智能体的执行轨迹。"法官"LLM根据提示标准（可以包括参考轨迹）审查智能体的决策。
 
-More flexible and can assess nuanced aspects like efficiency and appropriateness, but requires an LLM call and is less deterministic. Use when you want to evaluate the overall quality and reasonableness of the agent's trajectory without strict tool call or ordering requirements.
+更灵活，可以评估效率和适当性等细微方面，但需要LLM调用且确定性较低。当您希望评估智能体轨迹的整体质量和合理性，而没有严格的工具调用或顺序要求时使用。
 </Card>
 
-### Installing AgentEvals
+### 安装 AgentEvals
 
 :::python
 ```bash
@@ -99,27 +99,27 @@ npm install agentevals @langchain/core
 ```
 :::
 
-Or, clone the [AgentEvals repository](https://github.com/langchain-ai/agentevals) directly.
+或者，直接克隆 [AgentEvals 仓库](https://github.com/langchain-ai/agentevals)。
 
-### Trajectory Match Evaluator
+### 轨迹匹配评估器
 
 :::python
-AgentEvals offers the `create_trajectory_match_evaluator` function to match your agent's trajectory against a reference trajectory. There are four modes to choose from:
+AgentEvals 提供 `create_trajectory_match_evaluator` 函数来将智能体的轨迹与参考轨迹进行匹配。有四种模式可供选择：
 :::
 :::js
-AgentEvals offers the `createTrajectoryMatchEvaluator` function to match your agent's trajectory against a reference trajectory. There are four modes to choose from:
+AgentEvals 提供 `createTrajectoryMatchEvaluator` 函数来将智能体的轨迹与参考轨迹进行匹配。有四种模式可供选择：
 :::
 
-| Mode | Description | Use Case |
+| 模式 | 描述 | 使用场景 |
 |------|-------------|----------|
-| `strict` | Exact match of messages and tool calls in the same order | Testing specific sequences (e.g., policy lookup before authorization) |
-| `unordered` | Same tool calls allowed in any order | Verifying information retrieval when order doesn't matter |
-| `subset` | Agent calls only tools from reference (no extras) | Ensuring agent doesn't exceed expected scope |
-| `superset` | Agent calls at least the reference tools (extras allowed) | Verifying minimum required actions are taken |
+| `strict` | 相同顺序的消息和工具调用的精确匹配 | 测试特定序列（例如，策略查找在授权之前） |
+| `unordered` | 相同的工具调用可以以任何顺序出现 | 验证顺序无关紧要时的信息检索 |
+| `subset` | 智能体仅调用参考中的工具（无额外工具） | 确保智能体不超过预期范围 |
+| `superset` | 智能体至少调用参考工具（允许额外工具） | 验证至少执行了所需的最小操作 |
 
-<Accordion title="Strict match">
+<Accordion title="严格匹配">
 
-The `strict` mode ensures trajectories contain identical messages in the same order with the same tool calls, though it allows for differences in message content. This is useful when you need to enforce a specific sequence of operations, such as requiring a policy lookup before authorizing an action.
+`strict` 模式确保轨迹包含相同顺序的相同消息和工具调用，尽管允许消息内容存在差异。当您需要强制执行特定的操作序列时，这非常有用，例如要求在授权操作之前进行策略查找。
 
 :::python
 ```python
@@ -231,9 +231,9 @@ async function testWeatherToolCalledStrict() {
 
 </Accordion>
 
-<Accordion title="Unordered match">
+<Accordion title="无序匹配">
 
-The `unordered` mode allows the same tool calls in any order, which is helpful when you want to verify that specific information was retrieved but don't care about the sequence. For example, an agent might need to check both weather and events for a city, but the order doesn't matter.
+`unordered` 模式允许以任何顺序进行相同的工具调用，这在您希望验证是否检索了特定信息但不关心顺序时很有帮助。例如，智能体可能需要检查城市的天气和事件，但顺序无关紧要。
 
 :::python
 ```python
@@ -264,7 +264,7 @@ def test_multiple_tools_any_order():
         "messages": [HumanMessage(content="What's happening in SF today?")]
     })
 
-    # Reference shows tools called in different order than actual execution
+    # 参考显示了与实际执行顺序不同的工具调用顺序
     reference_trajectory = [
         HumanMessage(content="What's happening in SF today?"),
         AIMessage(content="", tool_calls=[
@@ -330,7 +330,7 @@ async function testMultipleToolsAnyOrder() {
     messages: [new HumanMessage("What's happening in SF today?")]
   });
 
-  // Reference shows tools called in different order than actual execution
+  // 参考显示了与实际执行顺序不同的工具调用顺序
   const referenceTrajectory = [
     new HumanMessage("What's happening in SF today?"),
     new AIMessage({
@@ -366,9 +366,9 @@ async function testMultipleToolsAnyOrder() {
 
 </Accordion>
 
-<Accordion title="Subset and superset match">
+<Accordion title="子集和超集匹配">
 
-The `superset` and `subset` modes match partial trajectories. The `superset` mode verifies that the agent called at least the tools in the reference trajectory, allowing additional tool calls. The `subset` mode ensures the agent did not call any tools beyond those in the reference.
+`superset` 和 `subset` 模式匹配部分轨迹。`superset` 模式验证智能体至少调用了参考轨迹中的工具，允许额外的工具调用。`subset` 模式确保智能体没有调用超出参考范围的任何工具。
 
 :::python
 ```python
@@ -399,7 +399,7 @@ def test_agent_calls_required_tools_plus_extra():
         "messages": [HumanMessage(content="What's the weather in Boston?")]
     })
 
-    # Reference only requires get_weather, but agent may call additional tools
+    # 参考仅需要 get_weather，但智能体可能调用额外工具
     reference_trajectory = [
         HumanMessage(content="What's the weather in Boston?"),
         AIMessage(content="", tool_calls=[
@@ -466,7 +466,7 @@ async function testAgentCallsRequiredToolsPlusExtra() {
     messages: [new HumanMessage("What's the weather in Boston?")]
   });
 
-  // Reference only requires getWeather, but agent may call additional tools
+  // 参考仅需要 getWeather，但智能体可能调用额外工具
   const referenceTrajectory = [
     new HumanMessage("What's the weather in Boston?"),
     new AIMessage({
@@ -500,23 +500,23 @@ async function testAgentCallsRequiredToolsPlusExtra() {
 
 <Info>
 :::python
-You can also set the `tool_args_match_mode` property and/or `tool_args_match_overrides` to customize how the evaluator considers equality between tool calls in the actual trajectory vs. the reference. By default, only tool calls with the same arguments to the same tool are considered equal. Visit the [repository](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#tool-args-match-modes) for more details.
+您还可以设置 `tool_args_match_mode` 属性和/或 `tool_args_match_overrides` 来自定义评估器如何考虑实际轨迹与参考轨迹中工具调用之间的相等性。默认情况下，只有具有相同参数且调用相同工具的工具调用才被视为相等。访问[仓库](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#tool-args-match-modes)了解更多详情。
 :::
 :::js
-You can also set the `toolArgsMatchMode` property and/or `toolArgsMatchOverrides` to customize how the evaluator considers equality between tool calls in the actual trajectory vs. the reference. By default, only tool calls with the same arguments to the same tool are considered equal. Visit the [repository](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#tool-args-match-modes) for more details.
+您还可以设置 `toolArgsMatchMode` 属性和/或 `toolArgsMatchOverrides` 来自定义评估器如何考虑实际轨迹与参考轨迹中工具调用之间的相等性。默认情况下，只有具有相同参数且调用相同工具的工具调用才被视为相等。访问[仓库](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#tool-args-match-modes)了解更多详情。
 :::
 </Info>
 
-### LLM-as-Judge Evaluator
+### LLM作为法官评估器
 
 :::python
-You can also use an LLM to evaluate the agent's execution path with the `create_trajectory_llm_as_judge` function. Unlike the trajectory match evaluators, it doesn't require a reference trajectory, but one can be provided if available.
+您还可以使用LLM通过 `create_trajectory_llm_as_judge` 函数来评估智能体的执行路径。与轨迹匹配评估器不同，它不需要参考轨迹，但如果可用，也可以提供参考轨迹。
 :::
 :::js
-You can also use an LLM to evaluate the agent's execution path with the `createTrajectoryLLMAsJudge` function. Unlike the trajectory match evaluators, it doesn't require a reference trajectory, but one can be provided if available.
+您还可以使用LLM通过 `createTrajectoryLLMAsJudge` 函数来评估智能体的执行路径。与轨迹匹配评估器不同，它不需要参考轨迹，但如果可用，也可以提供参考轨迹。
 :::
 
-<Accordion title="Without reference trajectory">
+<Accordion title="无参考轨迹">
 :::python
 ```python
 from langchain.agents import create_agent
@@ -601,9 +601,9 @@ async function testTrajectoryQuality() {
 :::
 </Accordion>
 
-<Accordion title="With reference trajectory">
+<Accordion title="有参考轨迹">
 
-If you have a reference trajectory, you can add an extra variable to your prompt and pass in the reference trajectory. Below, we use the prebuilt `TRAJECTORY_ACCURACY_PROMPT_WITH_REFERENCE` prompt and configure the `reference_outputs` variable:
+如果您有参考轨迹，可以向提示中添加额外变量并传入参考轨迹。下面，我们使用预构建的 `TRAJECTORY_ACCURACY_PROMPT_WITH_REFERENCE` 提示并配置 `reference_outputs` 变量：
 
 :::python
 ```python
@@ -637,15 +637,15 @@ const evaluation = await evaluator({
 </Accordion>
 
 <Info>
-For more configurability over how the LLM evaluates the trajectory, visit the [repository](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#trajectory-llm-as-judge).
+有关LLM如何评估轨迹的更多可配置性，请访问[仓库](https://github.com/langchain-ai/agentevals?tab=readme-ov-file#trajectory-llm-as-judge)。
 </Info>
 
 :::python
-### Async Support
+### 异步支持
 
-All `agentevals` evaluators support Python asyncio. For evaluators that use factory functions, async versions are available by adding `async` after `create_` in the function name.
+所有 `agentevals` 评估器都支持 Python asyncio。对于使用工厂函数的评估器，可以通过在函数名中的 `create_` 后添加 `async` 来获得异步版本。
 
-<Accordion title="Async judge and evaluator example">
+<Accordion title="异步法官和评估器示例">
 
 ```python
 from agentevals.trajectory.llm import create_async_trajectory_llm_as_judge, TRAJECTORY_ACCURACY_PROMPT
@@ -673,11 +673,11 @@ async def test_async_evaluation():
 
 :::
 
-## LangSmith Integration
+## LangSmith 集成
 
-For tracking experiments over time, you can log evaluator results to [LangSmith](https://smith.langchain.com/), a platform for building production-grade LLM applications that includes tracing, evaluation, and experimentation tools.
+为了随时间跟踪实验，您可以将评估器结果记录到 [LangSmith](https://smith.langchain.com/)，这是一个用于构建生产级LLM应用程序的平台，包括追踪、评估和实验工具。
 
-First, set up LangSmith by setting the required environment variables:
+首先，通过设置所需的环境变量来设置 LangSmith：
 
 ```bash
 export LANGSMITH_API_KEY="your_langsmith_api_key"
@@ -685,9 +685,9 @@ export LANGSMITH_TRACING="true"
 ```
 
 :::python
-LangSmith offers two main approaches for running evaluations: [pytest](/langsmith/pytest) integration and the `evaluate` function.
+LangSmith 提供了两种主要的运行评估方法：[pytest](/langsmith/pytest) 集成和 `evaluate` 函数。
 
-<Accordion title="Using pytest integration">
+<Accordion title="使用 pytest 集成">
 
 ```python
 import pytest
@@ -714,7 +714,7 @@ def test_trajectory_accuracy():
         AIMessage(content="The weather in SF is 75 degrees and sunny."),
     ]
 
-    # Log inputs, outputs, and reference outputs to LangSmith
+    # 将输入、输出和参考输出记录到 LangSmith
     t.log_inputs({})
     t.log_outputs({"messages": result["messages"]})
     t.log_reference_outputs({"messages": reference_trajectory})
@@ -725,19 +725,19 @@ def test_trajectory_accuracy():
     )
 ```
 
-Run the evaluation with pytest:
+使用 pytest 运行评估：
 
 ```bash
 pytest test_trajectory.py --langsmith-output
 ```
 
-Results will be automatically logged to LangSmith.
+结果将自动记录到 LangSmith。
 
 </Accordion>
 
-<Accordion title="Using the evaluate function">
+<Accordion title="使用 evaluate 函数">
 
-Alternatively, you can create a dataset in LangSmith and use the `evaluate` function:
+或者，您可以在 LangSmith 中创建一个数据集并使用 `evaluate` 函数：
 
 ```python
 from langsmith import Client
@@ -751,7 +751,7 @@ trajectory_evaluator = create_trajectory_llm_as_judge(
 )
 
 def run_agent(inputs):
-    """Your agent function that returns trajectory messages."""
+    """您的智能体函数，返回轨迹消息。"""
     return agent.invoke(inputs)["messages"]
 
 experiment_results = client.evaluate(
@@ -761,20 +761,20 @@ experiment_results = client.evaluate(
 )
 ```
 
-Results will be automatically logged to LangSmith.
+结果将自动记录到 LangSmith。
 
 
 </Accordion>
 
 <Tip>
-To learn more about evaluating your agent, see the [LangSmith docs](/langsmith/pytest).
+要了解有关评估智能体的更多信息，请参阅 [LangSmith 文档](/langsmith/pytest)。
 </Tip>
 :::
 
 :::js
-LangSmith offers two main approaches for running evaluations: [Vitest/Jest](/langsmith/vitest-jest) integration and the `evaluate` function.
+LangSmith 提供了两种主要的运行评估方法：[Vitest/Jest](/langsmith/vitest-jest) 集成和 `evaluate` 函数。
 
-<Accordion title="Using vitest/jest integration">
+<Accordion title="使用 vitest/jest 集成">
 
 ```ts
 import * as ls from "langsmith/vitest";
@@ -829,19 +829,19 @@ ls.describe("trajectory accuracy", () => {
 });
 ```
 
-Run the evaluation with your test runner:
+使用您的测试运行器运行评估：
 
 ```bash
 vitest run test_trajectory.eval.ts
-# or
+# 或
 jest test_trajectory.eval.ts
 ```
 
 </Accordion>
 
-<Accordion title="Using the evaluate function">
+<Accordion title="使用 evaluate 函数">
 
-Alternatively, you can create a dataset in LangSmith and use the `evaluate` function:
+或者，您可以在 LangSmith 中创建一个数据集并使用 `evaluate` 函数：
 
 ```ts
 import { evaluate } from "langsmith/evaluation";
@@ -866,23 +866,23 @@ await evaluate(
 );
 ```
 
-Results will be automatically logged to LangSmith.
+结果将自动记录到 LangSmith。
 
 </Accordion>
 
 <Tip>
-To learn more about evaluating your agent, see the [LangSmith docs](/langsmith/vitest-jest).
+要了解有关评估智能体的更多信息，请参阅 [LangSmith 文档](/langsmith/vitest-jest)。
 </Tip>
 :::
 
 :::python
-## Recording & Replaying HTTP Calls
+## 记录和重放 HTTP 调用
 
-Integration tests that call real LLM APIs can be slow and expensive, especially when run frequently in CI/CD pipelines. We recommend using a library for recording HTTP requests and responses, then replaying them in subsequent runs without making actual network calls.
+调用真实LLM API的集成测试可能很慢且昂贵，尤其是在CI/CD管道中频繁运行时。我们建议使用库来记录HTTP请求和响应，然后在后续运行中重放它们，而无需进行实际的网络调用。
 
-You can use [`vcrpy`](https://pypi.org/project/vcrpy/1.5.2/) to achieve this. If you're using `pytest`, the [`pytest-recording` plugin](https://pypi.org/project/pytest-recording/) provides a simple way to enable this with minimal configuration. Request/responses are recorded in cassettes, which are then used to mock the real network calls in subsequent runs.
+您可以使用 [`vcrpy`](https://pypi.org/project/vcrpy/1.5.2/) 来实现这一点。如果您使用 `pytest`，[`pytest-recording` 插件](https://pypi.org/project/pytest-recording/)提供了一种简单的方法来以最少的配置启用此功能。请求/响应记录在磁带中，然后在后续运行中使用这些磁带来模拟真实的网络调用。
 
-Set up your `conftest.py` file to filter out sensitive information from the cassettes:
+设置您的 `conftest.py` 文件以从磁带中过滤掉敏感信息：
 
 ```py conftest.py
 import pytest
@@ -893,7 +893,7 @@ def vcr_config():
         "filter_headers": [
             ("authorization", "XXXX"),
             ("x-api-key", "XXXX"),
-            # ... other headers you want to mask
+            # ... 您想要屏蔽的其他头部
         ],
         "filter_query_parameters": [
             ("api_key", "XXXX"),
@@ -902,7 +902,7 @@ def vcr_config():
     }
 ```
 
-Then configure your project to recognise the `vcr` marker:
+然后配置您的项目以识别 `vcr` 标记：
 
 <CodeGroup>
 ```ini pytest.ini
@@ -921,10 +921,10 @@ addopts = "--record-mode=once"
 </CodeGroup>
 
 <Info>
-The `--record-mode=once` option records HTTP interactions on the first run and replays them on subsequent runs.
+`--record-mode=once` 选项在第一次运行时记录HTTP交互，并在后续运行中重放它们。
 </Info>
 
-Now, simply decorate your tests with the `vcr` marker:
+现在，只需用 `vcr` 标记装饰您的测试：
 
 ```python
 @pytest.mark.vcr()
@@ -932,9 +932,9 @@ def test_agent_trajectory():
     # ...
 ```
 
-The first time you run this test, your agent will make real network calls and pytest will generate a cassette file `test_agent_trajectory.yaml` in the `tests/cassettes` directory. Subsequent runs will use that cassette to mock the real network calls, granted the agent's requests don't change from the previous run. If they do, the test will fail and you'll need to delete the cassette and rerun the test to record fresh interactions.
+第一次运行此测试时，您的智能体将进行真实的网络调用，pytest 将在 `tests/cassettes` 目录中生成一个磁带文件 `test_agent_trajectory.yaml`。后续运行将使用该磁带来模拟真实的网络调用，前提是智能体的请求与上一次运行相比没有变化。如果发生变化，测试将失败，您需要删除磁带并重新运行测试以记录新的交互。
 
 <Warning>
-When you modify prompts, add new tools, or change expected trajectories, your saved cassettes will become outdated and your existing tests **will fail**. You should delete the corresponding cassette files and rerun the tests to record fresh interactions.
+当您修改提示、添加新工具或更改预期轨迹时，您保存的磁带将过时，您现有的测试**将失败**。您应删除相应的磁带文件并重新运行测试以记录新的交互。
 </Warning>
 :::

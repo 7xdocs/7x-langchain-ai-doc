@@ -2,19 +2,17 @@
 title: Agents
 ---
 
-
-
-Agents combine language models with [tools](/oss/langchain/tools) to create systems that can reason about tasks, decide which tools to use, and iteratively work towards solutions.
+代理将语言模型与[工具](/oss/langchain/tools)相结合，创建能够推理任务、决定使用哪些工具并迭代式寻找解决方案的系统。
 
 :::python
-@[`create_agent`] provides a production-ready agent implementation.
+@[`create_agent`] 提供了一个生产就绪的代理实现。
 :::
 :::js
-`createAgent()` provides a production-ready agent implementation.
+`createAgent()` 提供了一个生产就绪的代理实现。
 :::
 
-[An LLM Agent runs tools in a loop to achieve a goal](https://simonwillison.net/2025/Sep/18/agents/).
-An agent runs until a stop condition is met - i.e., when the model emits a final output or an iteration limit is reached.
+[LLM 代理通过循环运行工具来实现目标](https://simonwillison.net/2025/Sep/18/agents/)。
+代理会持续运行，直到满足停止条件——即模型发出最终输出或达到迭代限制。
 
 ```mermaid
 %%{
@@ -48,27 +46,27 @@ graph TD
 <Info>
 
 :::python
-@[`create_agent`] builds a **graph**-based agent runtime using [LangGraph](/oss/langgraph/overview). A graph consists of nodes (steps) and edges (connections) that define how your agent processes information. The agent moves through this graph, executing nodes like the model node (which calls the model), the tools node (which executes tools), or middleware.
+@[`create_agent`] 使用 [LangGraph](/oss/langgraph/overview) 构建基于**图**的代理运行时。图由节点（步骤）和边（连接）组成，定义了代理处理信息的方式。代理在此图中移动，执行诸如模型节点（调用模型）、工具节点（执行工具）或中间件等节点。
 :::
 :::js
-`createAgent()` builds a **graph**-based agent runtime using [LangGraph](/oss/langgraph/overview). A graph consists of nodes (steps) and edges (connections) that define how your agent processes information. The agent moves through this graph, executing nodes like the model node (which calls the model), the tools node (which executes tools), or middleware.
+`createAgent()` 使用 [LangGraph](/oss/langgraph/overview) 构建基于**图**的代理运行时。图由节点（步骤）和边（连接）组成，定义了代理处理信息的方式。代理在此图中移动，执行诸如模型节点（调用模型）、工具节点（执行工具）或中间件等节点。
 :::
 
-Learn more about the [Graph API](/oss/langgraph/graph-api).
+了解更多关于 [Graph API](/oss/langgraph/graph-api) 的信息。
 
 </Info>
 
-## Core components
+## 核心组件
 
-### Model
+### 模型
 
-The [model](/oss/langchain/models) is the reasoning engine of your agent. It can be specified in multiple ways, supporting both static and dynamic model selection.
+[模型](/oss/langchain/models) 是代理的推理引擎。可以通过多种方式指定，支持静态和动态模型选择。
 
-#### Static model
+#### 静态模型
 
-Static models are configured once when creating the agent and remain unchanged throughout execution. This is the most common and straightforward approach.
+静态模型在创建代理时配置一次，并在整个执行过程中保持不变。这是最常见且直接的方法。
 
-To initialize a static model from a <Tooltip tip="A string that follows the format `provider:model` (e.g. openai:gpt-5)" cta="See mappings" href="https://reference.langchain.com/python/langchain/models/#langchain.chat_models.init_chat_model(model_provider)">model identifier string</Tooltip>:
+从 <Tooltip tip="遵循格式 `provider:model` 的字符串（例如 openai:gpt-5）" cta="查看映射" href="https://reference.langchain.com/python/langchain/models/#langchain.chat_models.init_chat_model(model_provider)">模型标识符字符串</Tooltip> 初始化静态模型：
 
 :::python
 ```python wrap
@@ -93,10 +91,10 @@ const agent = createAgent({
 
 :::python
 <Tip>
-    Model identifier strings support automatic inference (e.g., `"gpt-5"` will be inferred as `"openai:gpt-5"`). Refer to the @[reference][init_chat_model(model_provider)] to see a full list of model identifier string mappings.
+    模型标识符字符串支持自动推断（例如，`"gpt-5"` 将被推断为 `"openai:gpt-5"`）。参考 @[reference][init_chat_model(model_provider)] 查看完整的模型标识符字符串映射列表。
 </Tip>
 
-For more control over the model configuration, initialize a model instance directly using the provider package. In this example, we use @[`ChatOpenAI`]. See [Chat models](/oss/integrations/chat) for other available chat model classes.
+为了更精细地控制模型配置，可以直接使用提供者包初始化模型实例。在此示例中，我们使用 @[`ChatOpenAI`]。查看 [聊天模型](/oss/integrations/chat) 了解其他可用的聊天模型类。
 
 ```python wrap
 from langchain.agents import create_agent
@@ -112,10 +110,10 @@ model = ChatOpenAI(
 agent = create_agent(model, tools=tools)
 ```
 
-Model instances give you complete control over configuration. Use them when you need to set specific [parameters](/oss/langchain/models#parameters) like `temperature`, `max_tokens`, `timeouts`, `base_url`, and other provider-specific settings. Refer to the [reference](/oss/integrations/providers/all_providers) to see available params and methods on your model.
+模型实例让您完全控制配置。当您需要设置特定的[参数](/oss/langchain/models#parameters)如 `temperature`、`max_tokens`、`timeouts`、`base_url` 和其他提供者特定设置时，请使用它们。参考[参考文档](/oss/integrations/providers/all_providers)查看模型上可用的参数和方法。
 :::
 :::js
-Model identifier strings use the format `provider:model` (e.g. `"openai:gpt-5"`). You may want more control over the model configuration, in which case you can initialize a model instance directly using the provider package:
+模型标识符字符串使用格式 `provider:model` (例如 `"openai:gpt-5"`)。您可能希望更精细地控制模型配置，在这种情况下，您可以直接使用提供者包初始化模型实例：
 
 ```ts wrap
 import { createAgent } from "langchain";
@@ -134,16 +132,16 @@ const agent = createAgent({
 });
 ```
 
-Model instances give you complete control over configuration. Use them when you need to set specific parameters like `temperature`, `max_tokens`, `timeouts`, or configure API keys, `base_url`, and other provider-specific settings. Refer to the [API reference](/oss/integrations/providers/) to see available params and methods on your model.
+模型实例让您完全控制配置。当您需要设置特定参数如 `temperature`、`max_tokens`、`timeouts`，或配置 API 密钥、`base_url` 和其他提供者特定设置时，请使用它们。参考 [API 参考](/oss/integrations/providers/) 查看模型上可用的参数和方法。
 :::
 
-#### Dynamic model
+#### 动态模型
 
-Dynamic models are selected at <Tooltip tip="The execution environment of your agent, containing immutable configuration and contextual data that persists throughout the agent's execution (e.g., user IDs, session details, or application-specific configuration).">runtime</Tooltip> based on the current <Tooltip tip="The data that flows through your agent's execution, including messages, custom fields, and any information that needs to be tracked and potentially modified during processing (e.g., user preferences or tool usage stats).">state</Tooltip> and context. This enables sophisticated routing logic and cost optimization.
+动态模型根据当前的 <Tooltip tip="代理的执行环境，包含在代理整个执行过程中持久存在的不可变配置和上下文数据（例如，用户 ID、会话详情或应用程序特定配置）。">运行时</Tooltip> 状态和 <Tooltip tip="流经代理执行的数据，包括消息、自定义字段以及任何需要在处理过程中跟踪和可能修改的信息（例如，用户偏好或工具使用统计）。">上下文</Tooltip> 在 <Tooltip tip="运行时">runtime</Tooltip> 选择。这实现了复杂的路由逻辑和成本优化。
 
 :::python
 
-To use a dynamic model, create middleware using the @[`@wrap_model_call`] decorator that modifies the model in the request:
+要使用动态模型，创建使用 @[`@wrap_model_call`] 装饰器的中间件，该中间件修改请求中的模型：
 
 ```python
 from langchain_openai import ChatOpenAI
@@ -156,11 +154,11 @@ advanced_model = ChatOpenAI(model="gpt-4o")
 
 @wrap_model_call
 def dynamic_model_selection(request: ModelRequest, handler) -> ModelResponse:
-    """Choose model based on conversation complexity."""
+    """基于对话复杂性选择模型。"""
     message_count = len(request.state["messages"])
 
     if message_count > 10:
-        # Use an advanced model for longer conversations
+        # 对较长的对话使用高级模型
         model = advanced_model
     else:
         model = basic_model
@@ -169,20 +167,20 @@ def dynamic_model_selection(request: ModelRequest, handler) -> ModelResponse:
     return handler(request)
 
 agent = create_agent(
-    model=basic_model,  # Default model
+    model=basic_model,  # 默认模型
     tools=tools,
     middleware=[dynamic_model_selection]
 )
 ```
 
 <Warning>
-Pre-bound models (models with @[`bind_tools`][BaseChatModel.bind_tools] already called) are not supported when using structured output. If you need dynamic model selection with structured output, ensure the models passed to the middleware are not pre-bound.
+在使用结构化输出时，不支持预绑定模型（已调用 @[`bind_tools`][BaseChatModel.bind_tools] 的模型）。如果您需要带有结构化输出的动态模型选择，请确保传递给中间件的模型不是预绑定的。
 </Warning>
 
 :::
 :::js
 
-To use a dynamic model, create middleware with `wrapModelCall` that modifies the model in the request:
+要使用动态模型，创建带有 `wrapModelCall` 的中间件来修改请求中的模型：
 
 ```ts
 import { ChatOpenAI } from "@langchain/openai";
@@ -194,7 +192,7 @@ const advancedModel = new ChatOpenAI({ model: "gpt-4o" });
 const dynamicModelSelection = createMiddleware({
   name: "DynamicModelSelection",
   wrapModelCall: (request, handler) => {
-    // Choose model based on conversation complexity
+    // 基于对话复杂性选择模型
     const messageCount = request.messages.length;
 
     return handler({
@@ -205,34 +203,34 @@ const dynamicModelSelection = createMiddleware({
 });
 
 const agent = createAgent({
-  model: "gpt-4o-mini", // Base model (used when messageCount ≤ 10)
+  model: "gpt-4o-mini", // 基础模型（当 messageCount ≤ 10 时使用）
   tools,
   middleware: [dynamicModelSelection] as const,
 });
 ```
 
-For more details on middleware and advanced patterns, see the [middleware documentation](/oss/langchain/middleware).
+有关中间件和高级模式的更多详细信息，请参阅[中间件文档](/oss/langchain/middleware)。
 :::
 
 <Tip>
-For model configuration details, see [Models](/oss/langchain/models). For dynamic model selection patterns, see [Dynamic model in middleware](/oss/langchain/middleware#dynamic-model).
+有关模型配置的详细信息，请参阅[模型](/oss/langchain/models)。有关动态模型选择模式，请参阅[中间件中的动态模型](/oss/langchain/middleware#dynamic-model)。
 </Tip>
 
-### Tools
+### 工具
 
-Tools give agents the ability to take actions. Agents go beyond simple model-only tool binding by facilitating:
+工具赋予代理执行操作的能力。代理通过以下方式超越了简单的仅模型工具绑定：
 
-- Multiple tool calls in sequence (triggered by a single prompt)
-- Parallel tool calls when appropriate
-- Dynamic tool selection based on previous results
-- Tool retry logic and error handling
-- State persistence across tool calls
+- 按顺序进行多次工具调用（由单个提示触发）
+- 在适当时进行并行工具调用
+- 基于先前结果的动态工具选择
+- 工具重试逻辑和错误处理
+- 跨工具调用的状态持久性
 
-For more information, see [Tools](/oss/langchain/tools).
+更多信息，请参阅[工具](/oss/langchain/tools)。
 
-#### Defining tools
+#### 定义工具
 
-Pass a list of tools to the agent.
+向代理传递一个工具列表。
 
 :::python
 ```python wrap
@@ -242,12 +240,12 @@ from langchain.agents import create_agent
 
 @tool
 def search(query: str) -> str:
-    """Search for information."""
+    """搜索信息。"""
     return f"Results for: {query}"
 
 @tool
 def get_weather(location: str) -> str:
-    """Get weather information for a location."""
+    """获取某个位置的天气信息。"""
     return f"Weather in {location}: Sunny, 72°F"
 
 agent = create_agent(model, tools=[search, get_weather])
@@ -262,9 +260,9 @@ const search = tool(
   ({ query }) => `Results for: ${query}`,
   {
     name: "search",
-    description: "Search for information",
+    description: "搜索信息",
     schema: z.object({
-      query: z.string().describe("The query to search for"),
+      query: z.string().describe("要搜索的查询"),
     }),
   }
 );
@@ -273,9 +271,9 @@ const getWeather = tool(
   ({ location }) => `Weather in ${location}: Sunny, 72°F`,
   {
     name: "get_weather",
-    description: "Get weather information for a location",
+    description: "获取某个位置的天气信息",
     schema: z.object({
-      location: z.string().describe("The location to get weather for"),
+      location: z.string().describe("要获取天气的位置"),
     }),
   }
 );
@@ -287,13 +285,13 @@ const agent = createAgent({
 ```
 :::
 
-If an empty tool list is provided, the agent will consist of a single LLM node without tool-calling capabilities.
+如果提供了空的工具列表，代理将仅包含一个没有工具调用能力的 LLM 节点。
 
-#### Tool error handling
+#### 工具错误处理
 
 :::python
 
-To customize how tool errors are handled, use the @[`@wrap_tool_call`] decorator to create middleware:
+要自定义工具错误的处理方式，使用 @[`@wrap_tool_call`] 装饰器创建中间件：
 
 ```python wrap
 from langchain.agents import create_agent
@@ -303,13 +301,13 @@ from langchain_core.messages import ToolMessage
 
 @wrap_tool_call
 def handle_tool_errors(request, handler):
-    """Handle tool execution errors with custom messages."""
+    """使用自定义消息处理工具执行错误。"""
     try:
         return handler(request)
     except Exception as e:
-        # Return a custom error message to the model
+        # 向模型返回自定义错误消息
         return ToolMessage(
-            content=f"Tool error: Please check your input and try again. ({str(e)})",
+            content=f"工具错误：请检查您的输入并重试。（{str(e)}）",
             tool_call_id=request.tool_call["id"]
         )
 
@@ -320,13 +318,13 @@ agent = create_agent(
 )
 ```
 
-The agent will return a @[`ToolMessage`] with the custom error message when a tool fails:
+当工具失败时，代理将返回一个带有自定义错误消息的 @[`ToolMessage`]：
 
 ```python
 [
     ...
     ToolMessage(
-        content="Tool error: Please check your input and try again. (division by zero)",
+        content="工具错误：请检查您的输入并重试。（division by zero）",
         tool_call_id="..."
     ),
     ...
@@ -336,7 +334,7 @@ The agent will return a @[`ToolMessage`] with the custom error message when a to
 :::
 :::js
 
-To customize how tool errors are handled, use the `wrapToolCall` hook in a custom middleware:
+要自定义工具错误的处理方式，在自定义中间件中使用 `wrapToolCall` 钩子：
 
 ```ts wrap
 import { createAgent, createMiddleware, ToolMessage } from "langchain";
@@ -347,9 +345,9 @@ const handleToolErrors = createMiddleware({
     try {
       return handler(request);
     } catch (error) {
-      // Return a custom error message to the model
+      // 向模型返回自定义错误消息
       return new ToolMessage({
-        content: `Tool error: Please check your input and try again. (${error})`,
+        content: `工具错误：请检查您的输入并重试。（${error}）`,
         tool_call_id: request.toolCall.id!,
       });
     }
@@ -365,15 +363,15 @@ const agent = createAgent({
 });
 ```
 
-The agent will return a @[`ToolMessage`] with the custom error message when a tool fails.
+当工具失败时，代理将返回一个带有自定义错误消息的 @[`ToolMessage`]。
 :::
 
-#### Tool use in the ReAct loop
+#### ReAct 循环中的工具使用
 
-Agents follow the ReAct ("Reasoning + Acting") pattern, alternating between brief reasoning steps with targeted tool calls and feeding the resulting observations into subsequent decisions until they can deliver a final answer.
+代理遵循 ReAct（"推理 + 行动"）模式，在简短推理步骤与针对性工具调用之间交替进行，并将结果观察反馈到后续决策中，直到能够给出最终答案。
 
-<Accordion title="Example of ReAct loop">
-Prompt: Identify the current most popular wireless headphones and verify availability.
+<Accordion title="ReAct 循环示例">
+提示：识别当前最流行的无线耳机并验证其可用性。
 
 ```
 ================================ Human Message =================================
@@ -381,8 +379,8 @@ Prompt: Identify the current most popular wireless headphones and verify availab
 Find the most popular wireless headphones right now and check if they're in stock
 ```
 
-* **Reasoning**: "Popularity is time-sensitive, I need to use the provided search tool."
-* **Acting**: Call `search_products("wireless headphones")`
+* **推理**："流行度是时间敏感的，我需要使用提供的搜索工具。"
+* **行动**：调用 `search_products("wireless headphones")`
 
 ```
 ================================== Ai Message ==================================
@@ -398,8 +396,8 @@ Tool Calls:
 Found 5 products matching "wireless headphones". Top 5 results: WH-1000XM5, ...
 ```
 
-* **Reasoning**: "I need to confirm availability for the top-ranked item before answering."
-* **Acting**: Call `check_inventory("WH-1000XM5")`
+* **推理**："在回答之前，我需要确认排名第一的商品的可用性。"
+* **行动**：调用 `check_inventory("WH-1000XM5")`
 
 ```
 ================================== Ai Message ==================================
@@ -415,8 +413,8 @@ Tool Calls:
 Product WH-1000XM5: 10 units in stock
 ```
 
-* **Reasoning**: "I have the most popular model and its stock status. I can now answer the user's question."
-* **Acting**: Produce final answer
+* **推理**："我有了最流行的型号及其库存状态。现在可以回答用户的问题了。"
+* **行动**：生成最终答案
 
 ```
 ================================== Ai Message ==================================
@@ -426,19 +424,19 @@ I found wireless headphones (model WH-1000XM5) with 10 units in stock...
 </Accordion>
 
 <Tip>
-To learn more about tools, see [Tools](/oss/langchain/tools).
+要了解有关工具的更多信息，请参阅[工具](/oss/langchain/tools)。
 </Tip>
 
-### System prompt
+### 系统提示
 
-You can shape how your agent approaches tasks by providing a prompt. The @[`system_prompt`] parameter can be provided as a string:
+您可以通过提供提示来塑造代理处理任务的方式。@[`system_prompt`] 参数可以作为字符串提供：
 
 :::python
 ```python wrap
 agent = create_agent(
     model,
     tools,
-    system_prompt="You are a helpful assistant. Be concise and accurate."
+    system_prompt="你是一个乐于助人的助手。请简洁准确。"
 )
 ```
 :::
@@ -447,20 +445,20 @@ agent = create_agent(
 const agent = createAgent({
   model,
   tools,
-  systemPrompt: "You are a helpful assistant. Be concise and accurate.",
+  systemPrompt: "你是一个乐于助人的助手。请简洁准确。",
 });
 ```
 :::
 
-When no @[`system_prompt`] is provided, the agent will infer its task from the messages directly.
+当没有提供 @[`system_prompt`] 时，代理将直接从消息推断其任务。
 
-#### Dynamic system prompt
+#### 动态系统提示
 
-For more advanced use cases where you need to modify the system prompt based on runtime context or agent state, you can use [middleware](/oss/langchain/middleware).
+对于需要根据运行时上下文或代理状态修改系统提示的更高级用例，您可以使用[中间件](/oss/langchain/middleware)。
 
 :::python
 
-The @[`@dynamic_prompt`] decorator creates middleware that generates system prompts dynamically based on the model request:
+@[`@dynamic_prompt`] 装饰器创建中间件，根据模型请求动态生成系统提示：
 
 ```python wrap
 from typing import TypedDict
@@ -474,14 +472,14 @@ class Context(TypedDict):
 
 @dynamic_prompt
 def user_role_prompt(request: ModelRequest) -> str:
-    """Generate system prompt based on user role."""
+    """基于用户角色生成系统提示。"""
     user_role = request.runtime.context.get("user_role", "user")
-    base_prompt = "You are a helpful assistant."
+    base_prompt = "你是一个乐于助人的助手。"
 
     if user_role == "expert":
-        return f"{base_prompt} Provide detailed technical responses."
+        return f"{base_prompt} 提供详细的技术响应。"
     elif user_role == "beginner":
-        return f"{base_prompt} Explain concepts simply and avoid jargon."
+        return f"{base_prompt} 简单地解释概念，避免使用行话。"
 
     return base_prompt
 
@@ -492,9 +490,9 @@ agent = create_agent(
     context_schema=Context
 )
 
-# The system prompt will be set dynamically based on context
+# 系统提示将根据上下文动态设置
 result = agent.invoke(
-    {"messages": [{"role": "user", "content": "Explain machine learning"}]},
+    {"messages": [{"role": "user", "content": "解释机器学习"}]},
     context={"user_role": "expert"}
 )
 ```
@@ -516,64 +514,64 @@ const agent = createAgent({
   middleware: [
     dynamicSystemPromptMiddleware<z.infer<typeof contextSchema>>((state, runtime) => {
       const userRole = runtime.context.userRole || "user";
-      const basePrompt = "You are a helpful assistant.";
+      const basePrompt = "你是一个乐于助人的助手。";
 
       if (userRole === "expert") {
-        return `${basePrompt} Provide detailed technical responses.`;
+        return `${basePrompt} 提供详细的技术响应。`;
       } else if (userRole === "beginner") {
-        return `${basePrompt} Explain concepts simply and avoid jargon.`;
+        return `${basePrompt} 简单地解释概念，避免使用行话。`;
       }
       return basePrompt;
     }),
   ],
 });
 
-// The system prompt will be set dynamically based on context
+// 系统提示将根据上下文动态设置
 const result = await agent.invoke(
-  { messages: [{ role: "user", content: "Explain machine learning" }] },
+  { messages: [{ role: "user", content: "解释机器学习" }] },
   { context: { userRole: "expert" } }
 );
 ```
 :::
 
 <Tip>
-For more details on message types and formatting, see [Messages](/oss/langchain/messages). For comprehensive middleware documentation, see [Middleware](/oss/langchain/middleware).
+有关消息类型和格式的更多详细信息，请参阅[消息](/oss/langchain/messages)。有关全面的中间件文档，请参阅[中间件](/oss/langchain/middleware)。
 </Tip>
 
-## Invocation
+## 调用
 
-You can invoke an agent by passing an update to its [`State`](/oss/langgraph/graph-api#state). All agents include a [sequence of messages](/oss/langgraph/use-graph-api#messagesstate) in their state; to invoke the agent, pass a new message:
+您可以通过向其 [`State`](/oss/langgraph/graph-api#state) 传递更新来调用代理。所有代理在其状态中都包含一个[消息序列](/oss/langgraph/use-graph-api#messagesstate)；要调用代理，请传递一条新消息：
 
 :::python
 ```python
 result = agent.invoke(
-    {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+    {"messages": [{"role": "user", "content": "旧金山的天气怎么样？"}]}
 )
 ```
 :::
 :::js
 ```typescript
 await agent.invoke({
-  messages: [{ role: "user", content: "What's the weather in San Francisco?" }],
+  messages: [{ role: "user", content: "旧金山的天气怎么样？" }],
 })
 ```
 :::
 
-For streaming steps and / or tokens from the agent, refer to the [streaming](/oss/langchain/streaming) guide.
+要从代理流式传输步骤和/或令牌，请参阅[流式传输](/oss/langchain/streaming)指南。
 
-Otherwise, the agent follows the LangGraph [Graph API](/oss/langgraph/use-graph-api) and supports all associated methods.
+除此之外，代理遵循 LangGraph 的 [Graph API](/oss/langgraph/use-graph-api) 并支持所有相关方法。
 
-## Advanced concepts
+## 高级概念
 
-### Structured output
+### 结构化输出
 
 :::python
 
-In some situations, you may want the agent to return an output in a specific format. LangChain provides strategies for structured output via the @[`response_format`][ModelRequest(response_format)] parameter.
+在某些情况下，您可能希望代理以特定格式返回输出。LangChain 通过 @[`response_format`][ModelRequest(response_format)] 参数提供了结构化输出的策略。
 
 #### ToolStrategy
 
-`ToolStrategy` uses artificial tool calling to generate structured output. This works with any model that supports tool calling:
+`ToolStrategy` 使用人工工具调用来生成结构化输出。这适用于任何支持工具调用的模型：
 
 ```python wrap
 from pydantic import BaseModel
@@ -593,7 +591,7 @@ agent = create_agent(
 )
 
 result = agent.invoke({
-    "messages": [{"role": "user", "content": "Extract contact info from: John Doe, john@example.com, (555) 123-4567"}]
+    "messages": [{"role": "user", "content": "从以下内容提取联系信息：John Doe, john@example.com, (555) 123-4567"}]
 })
 
 result["structured_response"]
@@ -602,7 +600,7 @@ result["structured_response"]
 
 #### ProviderStrategy
 
-`ProviderStrategy` uses the model provider's native structured output generation. This is more reliable but only works with providers that support native structured output (e.g., OpenAI):
+`ProviderStrategy` 使用模型提供程序的原生结构化输出生成。这更可靠，但仅适用于支持原生结构化输出的提供程序（例如，OpenAI）：
 
 ```python wrap
 from langchain.agents.structured_output import ProviderStrategy
@@ -614,12 +612,12 @@ agent = create_agent(
 ```
 
 <Note>
-As of `langchain 1.0`, simply passing a schema (e.g., `response_format=ContactInfo`) is no longer supported. You must explicitly use `ToolStrategy` or `ProviderStrategy`.
+从 `langchain 1.0` 开始，不再支持仅传递模式（例如 `response_format=ContactInfo`）。您必须明确使用 `ToolStrategy` 或 `ProviderStrategy`。
 </Note>
 
 :::
 :::js
-In some situations, you may want the agent to return an output in a specific format. LangChain provides a simple, universal way to do this with the `responseFormat` parameter.
+在某些情况下，您可能希望代理以特定格式返回输出。LangChain 通过 `responseFormat` 参数提供了一种简单、通用的方法来实现这一点。
 
 ```ts wrap
 import * as z from "zod";
@@ -640,7 +638,7 @@ const result = await agent.invoke({
   messages: [
     {
       role: "user",
-      content: "Extract contact info from: John Doe, john@example.com, (555) 123-4567",
+      content: "从以下内容提取联系信息：John Doe, john@example.com, (555) 123-4567",
     },
   ],
 });
@@ -654,32 +652,32 @@ console.log(result.structuredResponse);
 ```
 :::
 <Tip>
-To learn about structured output, see [Structured output](/oss/langchain/structured-output).
+要了解结构化输出，请参阅[结构化输出](/oss/langchain/structured-output)。
 </Tip>
 
-### Memory
+### 记忆
 
-Agents maintain conversation history automatically through the message state. You can also configure the agent to use a custom state schema to remember additional information during the conversation.
+代理通过消息状态自动维护对话历史记录。您还可以配置代理使用自定义状态模式来记住对话过程中的附加信息。
 
-Information stored in the state can be thought of as the [short-term memory](/oss/langchain/short-term-memory) of the agent:
+存储在状态中的信息可以看作是代理的[短期记忆](/oss/langchain/short-term-memory)：
 
 :::python
 
-Custom state schemas must extend @[`AgentState`] as a `TypedDict`.
+自定义状态模式必须将 @[`AgentState`] 扩展为 `TypedDict`。
 
-There are two ways to define custom state:
-1. Via [middleware](/oss/langchain/middleware) (preferred)
-2. Via @[`state_schema`] on @[`create_agent`]
+有两种定义自定义状态的方式：
+1. 通过[中间件](/oss/langchain/middleware)（推荐）
+2. 通过 @[`create_agent`] 上的 @[`state_schema`]
 
 <Note>
-Defining custom state via middleware is preferred over defining it via @[`state_schema`] on @[`create_agent`] because it allows you to keep state extensions conceptually scoped to the relevant middleware and tools.
+通过中间件定义自定义状态比通过 @[`create_agent`] 上的 @[`state_schema`] 定义更受推荐，因为它允许您将状态扩展概念上限定在相关的中间件和工具范围内。
 
-@[`state_schema`] is still supported for backwards compatibility on @[`create_agent`].
+@[`state_schema`] 在 @[`create_agent`] 上仍然受支持以保持向后兼容性。
 </Note>
 
-#### Defining state via middleware
+#### 通过中间件定义状态
 
-Use middleware to define custom state when your custom state needs to be accessed by specific middleware hooks and tools attached to said middleware.
+当您的自定义状态需要被特定的中间件钩子和附加到该中间件的工具访问时，使用中间件来定义自定义状态。
 
 ```python
 from langchain.agents import AgentState
@@ -702,16 +700,16 @@ agent = create_agent(
     middleware=[CustomMiddleware()]
 )
 
-# The agent can now track additional state beyond messages
+# 代理现在可以跟踪消息之外的附加状态
 result = agent.invoke({
-    "messages": [{"role": "user", "content": "I prefer technical explanations"}],
+    "messages": [{"role": "user", "content": "我偏好技术性解释"}],
     "user_preferences": {"style": "technical", "verbosity": "detailed"},
 })
 ```
 
-#### Defining state via `state_schema`
+#### 通过 `state_schema` 定义状态
 
-Use the @[`state_schema`] parameter as a shortcut to define custom state that is only used in tools.
+使用 @[`state_schema`] 参数作为快捷方式来定义仅用于工具中的自定义状态。
 
 ```python
 from langchain.agents import AgentState
@@ -725,15 +723,15 @@ agent = create_agent(
     tools=[tool1, tool2],
     state_schema=CustomState
 )
-# The agent can now track additional state beyond messages
+# 代理现在可以跟踪消息之外的附加状态
 result = agent.invoke({
-    "messages": [{"role": "user", "content": "I prefer technical explanations"}],
+    "messages": [{"role": "user", "content": "我偏好技术性解释"}],
     "user_preferences": {"style": "technical", "verbosity": "detailed"},
 })
 ```
 
 <Note>
-As of `langchain 1.0`, custom state schemas **must** be `TypedDict` types. Pydantic models and dataclasses are no longer supported. See the [v1 migration guide](/oss/migrate/langchain-v1#state-type-restrictions) for more details.
+从 `langchain 1.0` 开始，自定义状态模式**必须**是 `TypedDict` 类型。不再支持 Pydantic 模型和数据类。有关更多详细信息，请参阅 [v1 迁移指南](/oss/migrate/langchain-v1#state-type-restrictions)。
 </Note>
 
 :::
@@ -757,24 +755,24 @@ const CustomAgentState = createAgent({
 :::
 
 <Tip>
-To learn more about memory, see [Memory](/oss/concepts/memory). For information on implementing long-term memory that persists across sessions, see [Long-term memory](/oss/langchain/long-term-memory).
+要了解更多关于记忆的信息，请参阅[记忆](/oss/concepts/memory)。有关实现跨会话持久化的长期记忆的信息，请参阅[长期记忆](/oss/langchain/long-term-memory)。
 </Tip>
 
-### Streaming
+### 流式传输
 
-We've seen how the agent can be called with `invoke` to get a final response. If the agent executes multiple steps, this may take a while. To show intermediate progress, we can stream back messages as they occur.
+我们已经看到可以使用 `invoke` 调用代理以获取最终响应。如果代理执行多个步骤，这可能需要一段时间。为了显示中间进度，我们可以在消息发生时将其流式传输回来。
 
 :::python
 ```python
 for chunk in agent.stream({
-    "messages": [{"role": "user", "content": "Search for AI news and summarize the findings"}]
+    "messages": [{"role": "user", "content": "搜索 AI 新闻并总结发现"}]
 }, stream_mode="values"):
-    # Each chunk contains the full state at that point
+    # 每个块包含该时间点的完整状态
     latest_message = chunk["messages"][-1]
     if latest_message.content:
-        print(f"Agent: {latest_message.content}")
+        print(f"代理: {latest_message.content}")
     elif latest_message.tool_calls:
-        print(f"Calling tools: {[tc['name'] for tc in latest_message.tool_calls]}")
+        print(f"调用工具: {[tc['name'] for tc in latest_message.tool_calls]}")
 ```
 :::
 :::js
@@ -783,49 +781,49 @@ const stream = await agent.stream(
   {
     messages: [{
       role: "user",
-      content: "Search for AI news and summarize the findings"
+      content: "搜索 AI 新闻并总结发现"
     }],
   },
   { streamMode: "values" }
 );
 
 for await (const chunk of stream) {
-  // Each chunk contains the full state at that point
+  // 每个块包含该时间点的完整状态
   const latestMessage = chunk.messages.at(-1);
   if (latestMessage?.content) {
-    console.log(`Agent: ${latestMessage.content}`);
+    console.log(`代理: ${latestMessage.content}`);
   } else if (latestMessage?.tool_calls) {
     const toolCallNames = latestMessage.tool_calls.map((tc) => tc.name);
-    console.log(`Calling tools: ${toolCallNames.join(", ")}`);
+    console.log(`调用工具: ${toolCallNames.join(", ")}`);
   }
 }
 ```
 :::
 
 <Tip>
-For more details on streaming, see [Streaming](/oss/langchain/streaming).
+有关流式传输的更多详细信息，请参阅[流式传输](/oss/langchain/streaming)。
 </Tip>
 
-### Middleware
+### 中间件
 
-[Middleware](/oss/langchain/middleware) provides powerful extensibility for customizing agent behavior at different stages of execution. You can use middleware to:
+[中间件](/oss/langchain/middleware) 提供了强大的扩展性，用于在执行的不同阶段自定义代理行为。您可以使用中间件来：
 
-- Process state before the model is called (e.g., message trimming, context injection)
-- Modify or validate the model's response (e.g., guardrails, content filtering)
-- Handle tool execution errors with custom logic
-- Implement dynamic model selection based on state or context
-- Add custom logging, monitoring, or analytics
+- 在调用模型之前处理状态（例如，消息修剪、上下文注入）
+- 修改或验证模型的响应（例如，防护栏、内容过滤）
+- 使用自定义逻辑处理工具执行错误
+- 基于状态或上下文实现动态模型选择
+- 添加自定义日志记录、监控或分析
 
-Middleware integrates seamlessly into the agent's execution graph, allowing you to intercept and modify data flow at key points without changing the core agent logic.
+中间件无缝集成到代理的执行图中，允许您在关键点拦截和修改数据流，而无需更改核心代理逻辑。
 
 :::python
 <Tip>
-For comprehensive middleware documentation including decorators like @[`@before_model`], @[`@after_model`], and @[`@wrap_tool_call`], see [Middleware](/oss/langchain/middleware).
+有关包括 @[`@before_model`]、@[`@after_model`] 和 @[`@wrap_tool_call`] 等装饰器的全面中间件文档，请参阅[中间件](/oss/langchain/middleware)。
 </Tip>
 :::
 
 :::js
 <Tip>
-For comprehensive middleware documentation including hooks like `beforeModel`, `afterModel`, and `wrapToolCall`, see [Middleware](/oss/langchain/middleware).
+有关包括 `beforeModel`、`afterModel` 和 `wrapToolCall` 等钩子的全面中间件文档，请参阅[中间件](/oss/langchain/middleware)。
 </Tip>
 :::
