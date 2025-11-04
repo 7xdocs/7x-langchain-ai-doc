@@ -1,0 +1,305 @@
+---
+title: Streaming
+---
+
+LangChain 实现了一套流式传输系统来展示实时更新。
+
+流式传输对于提升基于LLM构建的应用程序的响应能力至关重要。通过在完整响应准备好之前逐步显示输出，流式传输显著改善了用户体验（UX），特别是在处理LLM的延迟时。
+
+## 概述
+
+LangChain 的流式传输系统允许您将智能体运行的实时反馈展示给您的应用程序。
+
+使用 LangChain 流式传输可以实现的功能：
+
+* <Icon icon="brain" size={16} /> [**流式传输智能体进度**](#agent-progress) — 在每次智能体步骤后获取状态更新。
+* <Icon icon="square-binary" size={16} /> [**流式传输 LLM 令牌**](#llm-tokens) — 在语言模型令牌生成时即进行流式传输。
+* <Icon icon="table" size={16} /> [**流式传输自定义更新**](#custom-updates) — 发出用户定义的信号（例如，`"已获取 10/100 条记录"`）。
+* <Icon icon="layer-plus" size={16} /> [**流式传输多种模式**](#stream-multiple-modes) — 从 `updates`（智能体进度）、`messages`（LLM 令牌 + 元数据）或 `custom`（任意用户数据）中选择。
+
+## 智能体进度
+
+要流式传输智能体进度，请使用 [`stream`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.stream) 或 [`astream`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.state.CompiledStateGraph.astream) 方法并设置 `stream_mode="updates"`。这会在每次智能体步骤后发出一个事件。
+
+
+
+
+例如，如果您有一个调用一次工具的智能体，您应该会看到以下更新：
+
+* **LLM 节点**：带有工具调用请求的 [`AIMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.AIMessage)
+* **工具节点**：带有执行结果的 [`ToolMessage`](https://reference.langchain.com/python/langchain/messages/#langchain.messages.ToolMessage)
+* **LLM 节点**：最终的 AI 响应
+
+```python title="Streaming agent progress"
+from langchain.agents import create_agent
+
+
+def get_weather(city: str) -> str:
+    """Get weather for a given city."""
+
+    return f"It's always sunny in {city}!"
+
+agent = create_agent(
+    model="openai:gpt-5-nano",
+    tools=[get_weather],
+)
+for chunk in agent.stream(  # [!code highlight]
+    {"messages": [{"role": "user", "content": "What is the weather in SF?"}]},
+    stream_mode="updates",
+):
+    for step, data in chunk.items():
+        print(f"step: {step}")
+        print(f"content: {data['messages'][-1].content_blocks}")
+```
+
+```shell title="Output"
+step: model
+content: [{'type': 'tool_call', 'name': 'get_weather', 'args': {'city': 'San Francisco'}, 'id': 'call_OW2NYNsNSKhRZpjW0wm2Aszd'}]
+
+step: tools
+content: [{'type': 'text', 'text': "It's always sunny in San Francisco!"}]
+
+step: model
+content: [{'type': 'text', 'text': 'It's always sunny in San Francisco!'}]
+```
+
+
+
+
+## LLM 令牌
+
+要流式传输由 LLM 生成的令牌，请使用 `stream_mode="messages"`。下方您可以看到智能体流式传输工具调用和最终响应的输出。
+
+```python title="Streaming LLM tokens"
+from langchain.agents import create_agent
+
+
+def get_weather(city: str) -> str:
+    """Get weather for a given city."""
+
+    return f"It's always sunny in {city}!"
+
+agent = create_agent(
+    model="openai:gpt-5-nano",
+    tools=[get_weather],
+)
+for token, metadata in agent.stream(  # [!code highlight]
+    {"messages": [{"role": "user", "content": "What is the weather in SF?"}]},
+    stream_mode="messages",
+):
+    print(f"node: {metadata['langgraph_node']}")
+    print(f"content: {token.content_blocks}")
+    print("\n")
+```
+
+```shell title="Output" expandable
+node: model
+content: [{'type': 'tool_call_chunk', 'id': 'call_vbCyBcP8VuneUzyYlSBZZsVa', 'name': 'get_weather', 'args': '', 'index': 0}]
+
+
+node: model
+content: [{'type': 'tool_call_chunk', 'id': None, 'name': None, 'args': '{"', 'index': 0}]
+
+
+node: model
+content: [{'type': 'tool_call_chunk', 'id': None, 'name': None, 'args': 'city', 'index': 0}]
+
+
+node: model
+content: [{'type': 'tool_call_chunk', 'id': None, 'name': None, 'args': '":"', 'index': 0}]
+
+
+node: model
+content: [{'type': 'tool_call_chunk', 'id': None, 'name': None, 'args': 'San', 'index': 0}]
+
+
+node: model
+content: [{'type': 'tool_call_chunk', 'id': None, 'name': None, 'args': ' Francisco', 'index': 0}]
+
+
+node: model
+content: [{'type': 'tool_call_chunk', 'id': None, 'name': None, 'args': '"}', 'index': 0}]
+
+
+node: model
+content: []
+
+
+node: tools
+content: [{'type': 'text', 'text': "It's always sunny in San Francisco!"}]
+
+
+node: model
+content: []
+
+
+node: model
+content: [{'type': 'text', 'text': 'Here'}]
+
+
+node: model
+content: [{'type': 'text', 'text': ''s'}]
+
+
+node: model
+content: [{'type': 'text', 'text': ' what'}]
+
+
+node: model
+content: [{'type': 'text', 'text': ' I'}]
+
+
+node: model
+content: [{'type': 'text', 'text': ' got'}]
+
+
+node: model
+content: [{'type': 'text', 'text': ':'}]
+
+
+node: model
+content: [{'type': 'text', 'text': ' "'}]
+
+
+node: model
+content: [{'type': 'text', 'text': "It's"}]
+
+
+node: model
+content: [{'type': 'text', 'text': ' always'}]
+
+
+node: model
+content: [{'type': 'text', 'text': ' sunny'}]
+
+
+node: model
+content: [{'type': 'text', 'text': ' in'}]
+
+
+node: model
+content: [{'type': 'text', 'text': ' San'}]
+
+
+node: model
+content: [{'type': 'text', 'text': ' Francisco'}]
+
+
+node: model
+content: [{'type': 'text', 'text': '!"\n\n'}]
+```
+
+
+
+
+## 自定义更新
+
+要流式传输工具执行时的更新，您可以使用 [`get_stream_writer`](https://reference.langchain.com/python/langgraph/config/#langgraph.config.get_stream_writer)。
+
+```python title="Streaming custom updates"
+from langchain.agents import create_agent
+from langgraph.config import get_stream_writer  # [!code highlight]
+
+
+def get_weather(city: str) -> str:
+    """Get weather for a given city."""
+    writer = get_stream_writer()  # [!code highlight]
+    # 流式传输任意数据
+    writer(f"Looking up data for city: {city}")
+    writer(f"Acquired data for city: {city}")
+    return f"It's always sunny in {city}!"
+
+agent = create_agent(
+    model="anthropic:claude-sonnet-4-5",
+    tools=[get_weather],
+)
+
+for chunk in agent.stream(
+    {"messages": [{"role": "user", "content": "What is the weather in SF?"}]},
+    stream_mode="custom"  # [!code highlight]
+):
+    print(chunk)
+```
+
+```shell title="Output"
+Looking up data for city: San Francisco
+Acquired data for city: San Francisco
+```
+
+<Note>
+    如果您在工具内部添加了 [`get_stream_writer`](https://reference.langchain.com/python/langgraph/config/#langgraph.config.get_stream_writer)，那么您将无法在 LangGraph 执行上下文之外调用该工具。
+</Note>
+
+
+
+
+## 流式传输多种模式
+
+您可以通过将流模式作为列表传递来指定多种流式传输模式：`stream_mode=["updates", "custom"]`：
+
+```python title="Streaming multiple modes"
+from langchain.agents import create_agent
+from langgraph.config import get_stream_writer
+
+
+def get_weather(city: str) -> str:
+    """Get weather for a given city."""
+    writer = get_stream_writer()
+    writer(f"Looking up data for city: {city}")
+    writer(f"Acquired data for city: {city}")
+    return f"It's always sunny in {city}!"
+
+agent = create_agent(
+    model="openai:gpt-5-nano",
+    tools=[get_weather],
+)
+
+for stream_mode, chunk in agent.stream(  # [!code highlight]
+    {"messages": [{"role": "user", "content": "What is the weather in SF?"}]},
+    stream_mode=["updates", "custom"]
+):
+    print(f"stream_mode: {stream_mode}")
+    print(f"content: {chunk}")
+    print("\n")
+```
+
+```shell title="Output"
+stream_mode: updates
+content: {'model': {'messages': [AIMessage(content='', response_metadata={'token_usage': {'completion_tokens': 280, 'prompt_tokens': 132, 'total_tokens': 412, 'completion_tokens_details': {'accepted_prediction_tokens': 0, 'audio_tokens': 0, 'reasoning_tokens': 256, 'rejected_prediction_tokens': 0}, 'prompt_tokens_details': {'audio_tokens': 0, 'cached_tokens': 0}}, 'model_provider': 'openai', 'model_name': 'gpt-5-nano-2025-08-07', 'system_fingerprint': None, 'id': 'chatcmpl-C9tlgBzGEbedGYxZ0rTCz5F7OXpL7', 'service_tier': 'default', 'finish_reason': 'tool_calls', 'logprobs': None}, id='lc_run--480c07cb-e405-4411-aa7f-0520fddeed66-0', tool_calls=[{'name': 'get_weather', 'args': {'city': 'San Francisco'}, 'id': 'call_KTNQIftMrl9vgNwEfAJMVu7r', 'type': 'tool_call'}], usage_metadata={'input_tokens': 132, 'output_tokens': 280, 'total_tokens': 412, 'input_token_details': {'audio': 0, 'cache_read': 0}, 'output_token_details': {'audio': 0, 'reasoning': 256}})]}}
+
+
+stream_mode: custom
+content: Looking up data for city: San Francisco
+
+
+stream_mode: custom
+content: Acquired data for city: San Francisco
+
+
+stream_mode: updates
+content: {'tools': {'messages': [ToolMessage(content="It's always sunny in San Francisco!", name='get_weather', tool_call_id='call_KTNQIftMrl9vgNwEfAJMVu7r')]}}
+
+
+stream_mode: updates
+content: {'model': {'messages': [AIMessage(content='San Francisco weather: It's always sunny in San Francisco!\n\n', response_metadata={'token_usage': {'completion_tokens': 764, 'prompt_tokens': 168, 'total_tokens': 932, 'completion_tokens_details': {'accepted_prediction_tokens': 0, 'audio_tokens': 0, 'reasoning_tokens': 704, 'rejected_prediction_tokens': 0}, 'prompt_tokens_details': {'audio_tokens': 0, 'cached_tokens': 0}}, 'model_provider': 'openai', 'model_name': 'gpt-5-nano-2025-08-07', 'system_fingerprint': None, 'id': 'chatcmpl-C9tljDFVki1e1haCyikBptAuXuHYG', 'service_tier': 'default', 'finish_reason': 'stop', 'logprobs': None}, id='lc_run--acbc740a-18fe-4a14-8619-da92a0d0ee90-0', usage_metadata={'input_tokens': 168, 'output_tokens': 764, 'total_tokens': 932, 'input_token_details': {'audio': 0, 'cache_read': 0}, 'output_token_details': {'audio': 0, 'reasoning': 704}})]}}
+```
+
+
+
+
+## 禁用流式传输
+
+在某些应用程序中，您可能需要为给定模型禁用单个令牌的流式传输。
+
+这在[多智能体](/oss/python/langchain/multi-agent)系统中非常有用，可以控制哪些智能体流式传输其输出。
+
+请参阅[模型](/oss/python/langchain/models#disable-streaming)指南以了解如何禁用流式传输。
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/streaming.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for    real-time answers.
+</Tip>

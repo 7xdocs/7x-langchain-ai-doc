@@ -1,0 +1,323 @@
+---
+title: Model Context Protocol (MCP)
+---
+
+
+
+
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) 是一个开放协议，标准化了应用程序向 LLM 提供工具和上下文的方式。LangChain 代理可以使用 [`langchain-mcp-adapters`](https://github.com/langchain-ai/langchainjs/tree/main/libs/langchain-mcp-adapters/adapters) 库来使用在 MCP 服务器上定义的工具。
+
+
+## 安装
+
+
+
+安装 `@langchain/mcp-adapters` 库以在 LangGraph 中使用 MCP 工具：
+
+<CodeGroup>
+```bash npm
+npm install @langchain/mcp-adapters
+```
+
+```bash pnpm
+pnpm add @langchain/mcp-adapters
+```
+
+```bash yarn
+yarn add @langchain/mcp-adapters
+```
+
+```bash bun
+bun add @langchain/mcp-adapters
+```
+</CodeGroup>
+
+
+## 传输类型
+
+MCP 支持不同的传输机制用于客户端-服务器通信：
+
+- stdio：客户端将服务器作为子进程启动，并通过标准输入/输出进行通信。适用于本地工具和简单设置。
+- 可流式 HTTP：服务器作为独立的进程运行，处理 HTTP 请求。支持远程连接和多个客户端。
+- 服务器发送事件 (SSE)：可流式 HTTP 的一种变体，针对实时流通信进行了优化。
+
+## 使用 MCP 工具
+
+
+
+`@langchain/mcp-adapters` 使代理能够使用在一个或多个 MCP 服务器上定义的工具。
+
+```ts Accessing multiple MCP servers icon="server"
+import { MultiServerMCPClient } from "@langchain/mcp-adapters";  // [!code highlight]
+import { ChatAnthropic } from "@langchain/anthropic";
+import { createAgent } from "langchain";
+
+const client = new MultiServerMCPClient({  // [!code highlight]
+    math: {
+        transport: "stdio",  // Local subprocess communication
+        command: "node",
+        // Replace with absolute path to your math_server.js file
+        args: ["/path/to/math_server.js"],
+    },
+    weather: {
+        transport: "sse",  // Server-Sent Events for streaming
+        // Ensure you start your weather server on port 8000
+        url: "http://localhost:8000/mcp",
+    },
+});
+
+const tools = await client.getTools();  // [!code highlight]
+const agent = createAgent({
+    model: "anthropic:claude-sonnet-4-5",
+    tools,  // [!code highlight]
+});
+
+const mathResponse = await agent.invoke({
+    messages: [{ role: "user", content: "what's (3 + 5) x 12?" }],
+});
+
+const weatherResponse = await agent.invoke({
+    messages: [{ role: "user", content: "what is the weather in nyc?" }],
+});
+```
+
+
+<Note>
+    `MultiServerMCPClient` **默认是无状态的**。每次工具调用都会创建一个新的 MCP `ClientSession`，执行工具，然后进行清理。
+</Note>
+
+## 自定义 MCP 服务器
+
+
+
+要创建自己的 MCP 服务器，您可以使用 `@modelcontextprotocol/sdk` 库。该库提供了一种简单的方法来定义[工具](https://modelcontextprotocol.io/docs/learn/server-concepts#tools-ai-actions)并将其作为服务器运行。
+
+<CodeGroup>
+```bash npm
+npm install @modelcontextprotocol/sdk
+```
+
+```bash pnpm
+pnpm add @modelcontextprotocol/sdk
+```
+
+```bash yarn
+yarn add @modelcontextprotocol/sdk
+```
+
+```bash bun
+bun add @modelcontextprotocol/sdk
+```
+</CodeGroup>
+
+
+使用以下参考实现来测试您的代理与 MCP 工具服务器。
+
+
+
+```typescript title="Math server (stdio transport)" icon="floppy-disk"
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+    CallToolRequestSchema,
+    ListToolsRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+
+const server = new Server(
+    {
+        name: "math-server",
+        version: "0.1.0",
+    },
+    {
+        capabilities: {
+        tools: {},
+        },
+    }
+);
+
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return {
+        tools: [
+        {
+            name: "add",
+            description: "Add two numbers",
+            inputSchema: {
+            type: "object",
+            properties: {
+                a: {
+                type: "number",
+                description: "First number",
+                },
+                b: {
+                type: "number",
+                description: "Second number",
+                },
+            },
+            required: ["a", "b"],
+            },
+        },
+        {
+            name: "multiply",
+            description: "Multiply two numbers",
+            inputSchema: {
+            type: "object",
+            properties: {
+                a: {
+                type: "number",
+                description: "First number",
+                },
+                b: {
+                type: "number",
+                description: "Second number",
+                },
+            },
+            required: ["a", "b"],
+            },
+        },
+        ],
+    };
+});
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    switch (request.params.name) {
+        case "add": {
+        const { a, b } = request.params.arguments as { a: number; b: number };
+        return {
+            content: [
+            {
+                type: "text",
+                text: String(a + b),
+            },
+            ],
+        };
+        }
+        case "multiply": {
+        const { a, b } = request.params.arguments as { a: number; b: number };
+        return {
+            content: [
+            {
+                type: "text",
+                text: String(a * b),
+            },
+            ],
+        };
+        }
+        default:
+        throw new Error(`Unknown tool: ${request.params.name}`);
+    }
+});
+
+async function main() {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error("Math MCP server running on stdio");
+}
+
+main();
+```
+
+```typescript title="Weather server (SSE transport)" icon="wifi"
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import {
+    CallToolRequestSchema,
+    ListToolsRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+import express from "express";
+
+const app = express();
+app.use(express.json());
+
+const server = new Server(
+    {
+        name: "weather-server",
+        version: "0.1.0",
+    },
+    {
+        capabilities: {
+        tools: {},
+        },
+    }
+);
+
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return {
+        tools: [
+        {
+            name: "get_weather",
+            description: "Get weather for location",
+            inputSchema: {
+            type: "object",
+            properties: {
+                location: {
+                type: "string",
+                description: "Location to get weather for",
+                },
+            },
+            required: ["location"],
+            },
+        },
+        ],
+    };
+});
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    switch (request.params.name) {
+        case "get_weather": {
+        const { location } = request.params.arguments as { location: string };
+        return {
+            content: [
+            {
+                type: "text",
+                text: `It's always sunny in ${location}`,
+            },
+            ],
+        };
+        }
+        default:
+        throw new Error(`Unknown tool: ${request.params.name}`);
+    }
+});
+
+app.post("/mcp", async (req, res) => {
+    const transport = new SSEServerTransport("/mcp", res);
+    await server.connect(transport);
+});
+
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => {
+    console.log(`Weather MCP server running on port ${PORT}`);
+});
+```
+
+
+## 有状态工具使用
+
+对于需要在工具调用之间维护上下文的有状态服务器，使用 `client.session()` 来创建一个持久的 `ClientSession`。
+
+
+
+```typescript Using MCP ClientSession for stateful tool usage
+import { loadMCPTools } from "@langchain/mcp-adapters/tools.js";
+
+const client = new MultiServerMCPClient({...});
+const session = await client.session("math");
+const tools = await loadMCPTools(session);
+```
+
+
+## 额外资源
+
+* [MCP 文档](https://modelcontextprotocol.io/introduction)
+* [MCP 传输文档](https://modelcontextprotocol.io/docs/concepts/transports)
+
+* [`langchain-mcp-adapters`](https://github.com/langchain-ai/langchainjs/tree/main/libs/langchain-mcp-adapters/)
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/mcp.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for    real-time answers.
+</Tip>

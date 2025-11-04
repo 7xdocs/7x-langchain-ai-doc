@@ -1,0 +1,592 @@
+---
+title: 使用 LangChain 构建 RAG 智能体
+sidebarTitle: RAG 智能体
+---
+
+import ChatModelTabsPy from '/snippets/chat-model-tabs.mdx';
+import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
+import EmbeddingsTabsPy from '/snippets/embeddings-tabs-py.mdx';
+import EmbeddingsTabsJS from '/snippets/embeddings-tabs-js.mdx';
+import VectorstoreTabsPy from '/snippets/vectorstore-tabs-py.mdx';
+import VectorstoreTabsJS from '/snippets/vectorstore-tabs-js.mdx';
+
+
+## 概述
+
+由大语言模型（LLMs）实现的最强大应用之一是复杂的问答（Q&A）聊天机器人。这些应用能够回答关于特定源信息的问题。它们使用一种称为检索增强生成（Retrieval Augmented Generation）或 [RAG](/oss/python/langchain/retrieval/) 的技术。
+
+本教程将展示如何基于非结构化文本数据源构建一个简单的问答应用。我们将演示：
+
+1. 一个使用简单工具执行搜索的 RAG [智能体](#rag-agents)。这是一个很好的通用实现。
+2. 一个两步 RAG [链](#rag-chains)，每个查询仅使用一次 LLM 调用。对于简单查询来说，这是一种快速有效的方法。
+
+### 概念
+
+我们将涵盖以下概念：
+
+- **索引**：一个从源摄取数据并为其建立索引的流程。*这通常在一个单独的进程中发生。*
+
+- **检索与生成**：实际的 RAG 过程，它在运行时接收用户查询，从索引中检索相关数据，然后将其传递给模型。
+
+一旦我们为数据建立了索引，我们将使用一个[智能体](/oss/python/langchain/agents)作为我们的编排框架来实现检索和生成步骤。
+
+<Note>
+    本教程的索引部分主要遵循[语义搜索教程](/oss/python/langchain/knowledge-base)。
+
+    如果你的数据已经可供搜索（即，你有一个执行搜索的函数），或者你对那个教程的内容已经熟悉，可以跳过[检索与生成](#2-retrieval-and-generation)部分。
+</Note>
+
+### 预览
+
+在本指南中，我们将构建一个回答关于网站内容问题的应用。我们将使用的具体网站是 Lilian Weng 的 [LLM Powered Autonomous Agents](https://lilianweng.github.io/posts/2023-06-23-agent/) 博客文章，它允许我们就该文章的内容提问。
+
+我们可以用大约 40 行代码创建一个简单的索引流程和 RAG 链来实现这一点。完整代码片段如下：
+
+<Accordion title="展开查看完整代码片段">
+
+```python
+import bs4
+from langchain.agents import AgentState, create_agent
+from langchain_community.document_loaders import WebBaseLoader
+from langchain.messages import MessageLikeRepresentation
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+# Load and chunk contents of the blog
+loader = WebBaseLoader(
+    web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
+    bs_kwargs=dict(
+        parse_only=bs4.SoupStrainer(
+            class_=("post-content", "post-title", "post-header")
+        )
+    ),
+)
+docs = loader.load()
+
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+all_splits = text_splitter.split_documents(docs)
+
+# Index chunks
+_ = vector_store.add_documents(documents=all_splits)
+
+# Construct a tool for retrieving context
+@tool(response_format="content_and_artifact")
+def retrieve_context(query: str):
+    """Retrieve information to help answer a query."""
+    retrieved_docs = vector_store.similarity_search(query, k=2)
+    serialized = "\n\n".join(
+        (f"Source: {doc.metadata}\nContent: {doc.page_content}")
+        for doc in retrieved_docs
+    )
+    return serialized, retrieved_docs
+
+tools = [retrieve_context]
+# If desired, specify custom instructions
+prompt = (
+    "You have access to a tool that retrieves context from a blog post. "
+    "Use the tool to help answer user queries."
+)
+agent = create_agent(model, tools, system_prompt=prompt)
+```
+
+```python
+query = "What is task decomposition?"
+for step in agent.stream(
+    {"messages": [{"role": "user", "content": query}]},
+    stream_mode="values",
+):
+    step["messages"][-1].pretty_print()
+```
+
+```
+================================ Human Message =================================
+
+What is task decomposition?
+================================== Ai Message ==================================
+Tool Calls:
+  retrieve_context (call_xTkJr8njRY0geNz43ZvGkX0R)
+ Call ID: call_xTkJr8njRY0geNz43ZvGkX0R
+  Args:
+    query: task decomposition
+================================= Tool Message =================================
+Name: retrieve_context
+
+Source: {'source': 'https://lilianweng.github.io/posts/2023-06-23-agent/'}
+Content: Task decomposition can be done by...
+
+Source: {'source': 'https://lilianweng.github.io/posts/2023-06-23-agent/'}
+Content: Component One: Planning...
+================================== Ai Message ==================================
+
+Task decomposition refers to...
+```
+
+
+
+查看 [LangSmith 追踪记录](https://smith.langchain.com/public/a117a1f8-c96c-4c16-a285-00b85646118e/r)。
+
+</Accordion>
+
+## 设置
+
+
+### 安装
+
+本教程需要以下 langchain 依赖项：
+
+<CodeGroup>
+```bash pip
+pip install langchain langchain-text-splitters langchain-community bs4
+```
+```bash uv
+uv add langchain langchain-text-splitters langchain-community bs4
+```
+```bash conda
+conda install langchain langchain-text-splitters langchain-community bs4 -c conda-forge
+```
+</CodeGroup>
+
+
+
+更多详细信息，请参阅我们的[安装指南](/oss/python/langchain/install)。
+
+### LangSmith
+
+你使用 LangChain 构建的许多应用将包含多个步骤和多次 LLM 调用。随着这些应用变得越来越复杂，能够检查你的链或智能体内部究竟发生了什么变得至关重要。最好的方法是使用 [LangSmith](https://smith.langchain.com)。
+
+在以上链接注册后，请确保设置你的环境变量以开始记录追踪记录：
+
+```shell
+export LANGSMITH_TRACING="true"
+export LANGSMITH_API_KEY="..."
+```
+
+或者，在 Python 中设置它们：
+
+```python
+import getpass
+import os
+
+os.environ["LANGSMITH_TRACING"] = "true"
+os.environ["LANGSMITH_API_KEY"] = getpass.getpass()
+```
+
+
+### 组件
+
+我们将需要从 LangChain 的集成套件中选择三个组件。
+
+选择一个聊天模型：
+<ChatModelTabsPy />
+
+
+
+选择一个嵌入模型：
+<EmbeddingsTabsPy />
+
+
+
+选择一个向量存储：
+<VectorstoreTabsPy />
+
+
+
+
+## 1. 索引
+
+<Note>
+**本节是[语义搜索教程](/oss/python/langchain/knowledge-base)内容的缩写版本。**
+
+如果你的数据已经建立索引并可供搜索（即，你有一个执行搜索的函数），或者你对[文档加载器](/oss/python/langchain/retrieval#document_loaders)、[嵌入](/oss/python/langchain/retrieval#embedding_models)和[向量存储](/oss/python/langchain/retrieval#vectorstores)已经熟悉，可以跳到下一节关于[检索与生成](/oss/python/langchain/rag#2-retrieval-and-generation)的部分。
+
+</Note>
+
+索引通常按以下方式工作：
+
+1. **加载**：首先我们需要加载数据。这通过[文档加载器](/oss/python/langchain/retrieval#document_loaders)完成。
+2. **分割**：[文本分割器](/oss/python/langchain/retrieval#text_splitters)将大的 `Document` 对象分解成更小的块。这对索引数据和将其传递给模型都很有用，因为大块内容更难搜索，并且可能无法放入模型的有限上下文窗口中。
+3. **存储**：我们需要一个地方来存储和索引我们的分割块，以便以后可以搜索它们。这通常使用[向量存储](/oss/python/langchain/retrieval#vectorstores)和[嵌入](/oss/python/langchain/retrieval#embedding_models)模型完成。
+
+![index_diagram](/images/rag_indexing.png)
+
+### 加载文档
+
+我们首先需要加载博客文章的内容。我们可以使用[文档加载器](/oss/python/langchain/retrieval#document_loaders)来完成这个任务，这些对象从源加载数据并返回一个 [Document](https://reference.langchain.com/python/langchain_core/documents/#langchain_core.documents.base.Document) 对象列表。
+
+在这种情况下，我们将使用 [`WebBaseLoader`](/oss/python/integrations/document_loaders/web_base)，它使用 `urllib` 从网页 URL 加载 HTML，并使用 `BeautifulSoup` 将其解析为文本。我们可以通过 `bs_kwargs` 向 `BeautifulSoup` 解析器传递参数来自定义 HTML -> 文本的解析（参见 [BeautifulSoup 文档](https://beautiful-soup-4.readthedocs.io/en/latest/#beautifulsoup)）。在这种情况下，只有类名为 "post-content"、"post-title" 或 "post-header" 的 HTML 标签是相关的，因此我们将删除所有其他标签。
+
+```python
+import bs4
+from langchain_community.document_loaders import WebBaseLoader
+
+# Only keep post title, headers, and content from the full HTML.
+bs4_strainer = bs4.SoupStrainer(class_=("post-title", "post-header", "post-content"))
+loader = WebBaseLoader(
+    web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
+    bs_kwargs={"parse_only": bs4_strainer},
+)
+docs = loader.load()
+
+assert len(docs) == 1
+print(f"Total characters: {len(docs[0].page_content)}")
+```
+```output
+Total characters: 43131
+```
+
+```python
+print(docs[0].page_content[:500])
+```
+```output
+      LLM Powered Autonomous Agents
+
+Date: June 23, 2023  |  Estimated Reading Time: 31 min  |  Author: Lilian Weng
+
+
+Building agents with LLM (large language model) as its core controller is a cool concept. Several proof-of-concepts demos, such as AutoGPT, GPT-Engineer and BabyAGI, serve as inspiring examples. The potentiality of LLM extends beyond generating well-written copies, stories, essays and programs; it can be framed as a powerful general problem solver.
+Agent System Overview#
+In
+```
+
+
+**深入了解**
+
+`DocumentLoader`：从源加载数据作为 `Document` 列表的对象。
+
+- [集成](/oss/python/integrations/document_loaders/)：160+ 个集成可供选择。
+- [`BaseLoader`](https://reference.langchain.com/python/langchain_core/document_loaders/#langchain_core.document_loaders.BaseLoader)：基础接口的 API 参考。
+
+### 分割文档
+
+我们加载的文档超过 42k 个字符，这对于许多模型的上下文窗口来说太长了。即使对于那些可以将完整文章放入其上下文窗口的模型，模型也可能难以在很长的输入中找到信息。
+
+为了处理这个问题，我们将把 [`Document`](https://reference.langchain.com/python/langchain_core/documents/#langchain_core.documents.base.Document) 分割成块以便进行嵌入和向量存储。这应该有助于我们在运行时仅检索博客文章中最相关的部分。
+
+与[语义搜索教程](/oss/python/langchain/knowledge-base)中一样，我们使用 `RecursiveCharacterTextSplitter`，它将使用常见分隔符（如换行符）递归地分割文档，直到每个块达到适当的大小。这是通用文本用例推荐的文本分割器。
+
+```python
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,  # 块大小（字符数）
+    chunk_overlap=200,  # 块重叠（字符数）
+    add_start_index=True,  # 在原始文档中跟踪索引
+)
+all_splits = text_splitter.split_documents(docs)
+
+print(f"Split blog post into {len(all_splits)} sub-documents.")
+```
+```output
+Split blog post into 66 sub-documents.
+```
+
+**深入了解**
+
+`TextSplitter`：将 [`Document`](https://reference.langchain.com/python/langchain_core/documents/#langchain_core.documents.base.Document) 对象列表分割成更小块以便存储和检索的对象。
+
+- [集成](/oss/python/integrations/splitters/)
+- [接口](https://python.langchain.com/api_reference/text_splitters/base/langchain_text_splitters.base.TextSplitter.html)：基础接口的 API 参考。
+
+
+
+
+
+### 存储文档
+
+现在我们需要索引我们的 66 个文本块，以便我们可以在运行时搜索它们。遵循[语义搜索教程](/oss/python/langchain/knowledge-base)，我们的方法是[嵌入](/oss/python/langchain/retrieval#embedding_models/)每个文档分割块的内容，并将这些嵌入插入到[向量存储](/oss/python/langchain/retrieval#vectorstores/)中。给定一个输入查询，我们可以使用向量搜索来检索相关文档。
+
+我们可以使用在本教程[开始部分](/oss/python/langchain/rag#components)选择的向量存储和嵌入模型，通过一个命令来嵌入和存储所有的文档分割块。
+
+```python
+document_ids = vector_store.add_documents(documents=all_splits)
+
+print(document_ids[:3])
+```
+```output
+['07c18af6-ad58-479a-bfb1-d508033f9c64', '9000bf8e-1993-446f-8d4d-f4e507ba4b8f', 'ba3b5d14-bed9-4f5f-88be-44c88aedc2e6']
+```
+
+
+**深入了解**
+
+`Embeddings`：文本嵌入模型的包装器，用于将文本转换为嵌入。
+
+- [集成](/oss/python/integrations/text_embedding/)：30+ 个集成可供选择。
+- [接口](https://reference.langchain.com/python/langchain_core/embeddings/#langchain_core.embeddings.embeddings.Embeddings)：基础接口的 API 参考。
+
+`VectorStore`：向量数据库的包装器，用于存储和查询嵌入。
+
+- [集成](/oss/python/integrations/vectorstores/)：40+ 个集成可供选择。
+- [接口](https://python.langchain.com/api_reference/core/vectorstores/langchain_core.vectorstores.base.VectorStore.html)：基础接口的 API 参考。
+
+这完成了流程的**索引**部分。此时，我们有一个可查询的向量存储，其中包含我们博客文章的块内容。给定一个用户问题，我们理想情况下应该能够返回回答该问题的博客文章片段。
+
+## 2. 检索与生成
+
+RAG 应用通常按以下方式工作：
+
+1. **检索**：给定用户输入，使用[检索器](/oss/python/langchain/retrieval#retrievers)从存储中检索相关的分割块。
+2. **生成**：一个[模型](/oss/python/langchain/models)使用包含问题和检索到的数据的提示来生成答案。
+
+![retrieval_diagram](/images/rag_retrieval_generation.png)
+
+现在让我们编写实际的应用程序逻辑。我们想要创建一个简单的应用程序，它接收用户问题，搜索与该问题相关的文档，将检索到的文档和初始问题传递给模型，并返回答案。
+
+我们将演示：
+
+1. 一个使用简单工具执行搜索的 RAG [智能体](#rag-agents)。这是一个很好的通用实现。
+2. 一个两步 RAG [链](#rag-chains)，每个查询仅使用一次 LLM 调用。对于简单查询来说，这是一种快速有效的方法。
+
+### RAG 智能体
+
+RAG 应用的一种形式是作为一个带有检索信息工具的简单[智能体](/oss/python/langchain/agents)。我们可以通过实现一个包装我们向量存储的[工具](/oss/python/langchain/tools)来组装一个最小的 RAG 智能体：
+
+```python
+from langchain.tools import tool
+
+@tool(response_format="content_and_artifact")
+def retrieve_context(query: str):
+    """Retrieve information to help answer a query."""
+    retrieved_docs = vector_store.similarity_search(query, k=2)
+    serialized = "\n\n".join(
+        (f"Source: {doc.metadata}\nContent: {doc.page_content}")
+        for doc in retrieved_docs
+    )
+    return serialized, retrieved_docs
+```
+
+<Tip>
+
+这里我们使用 [tool 装饰器](https://reference.langchain.com/python/langchain/tools/#langchain.tools.tool) 来配置工具，将原始文档作为[工件](/oss/python/langchain/messages#param-artifact)附加到每个 [ToolMessage](/oss/python/langchain/messages#tool-message)。这将让我们能够在应用程序中访问文档元数据，与发送给模型的字符串化表示分开。
+
+</Tip>
+
+
+
+<Tip>
+    检索工具不限于单个字符串 `query` 参数，如上面的例子。你可以
+    通过添加参数来强制 LLM 指定额外的搜索参数——例如，一个类别：
+
+    ```python
+    from typing import Literal
+
+    def retrieve_context(query: str, section: Literal["beginning", "middle", "end"]):
+    ```
+</Tip>
+
+
+有了我们的工具，我们可以构建智能体：
+
+```python
+from langchain.agents import create_agent
+
+
+tools = [retrieve_context]
+# If desired, specify custom instructions
+prompt = (
+    "You have access to a tool that retrieves context from a blog post. "
+    "Use the tool to help answer user queries."
+)
+agent = create_agent(model, tools, system_prompt=prompt)
+```
+
+
+
+让我们测试一下。我们构建一个问题，这个问题通常需要迭代的检索步骤序列来回答：
+
+```python
+query = (
+    "What is the standard method for Task Decomposition?\n\n"
+    "Once you get the answer, look up common extensions of that method."
+)
+
+for event in agent.stream(
+    {"messages": [{"role": "user", "content": query}]},
+    stream_mode="values",
+):
+    event["messages"][-1].pretty_print()
+```
+```
+================================ Human Message =================================
+
+What is the standard method for Task Decomposition?
+
+Once you get the answer, look up common extensions of that method.
+================================== Ai Message ==================================
+Tool Calls:
+  retrieve_context (call_d6AVxICMPQYwAKj9lgH4E337)
+ Call ID: call_d6AVxICMPQYwAKj9lgH4E337
+  Args:
+    query: standard method for Task Decomposition
+================================= Tool Message =================================
+Name: retrieve_context
+
+Source: {'source': 'https://lilianweng.github.io/posts/2023-06-23-agent/'}
+Content: Task decomposition can be done...
+
+Source: {'source': 'https://lilianweng.github.io/posts/2023-06-23-agent/'}
+Content: Component One: Planning...
+================================== Ai Message ==================================
+Tool Calls:
+  retrieve_context (call_0dbMOw7266jvETbXWn4JqWpR)
+ Call ID: call_0dbMOw7266jvETbXWn4JqWpR
+  Args:
+    query: common extensions of the standard method for Task Decomposition
+================================= Tool Message =================================
+Name: retrieve_context
+
+Source: {'source': 'https://lilianweng.github.io/posts/2023-06-23-agent/'}
+Content: Task decomposition can be done...
+
+Source: {'source': 'https://lilianweng.github.io/posts/2023-06-23-agent/'}
+Content: Component One: Planning...
+================================== Ai Message ==================================
+
+The standard method for Task Decomposition often used is the Chain of Thought (CoT)...
+```
+
+
+注意，智能体：
+
+1. 生成一个查询来搜索任务分解的标准方法；
+2. 收到答案后，生成第二个查询来搜索其常见扩展；
+3. 收到所有必要的上下文后，回答问题。
+
+我们可以在 [LangSmith 追踪记录](https://smith.langchain.com/public/7b42d478-33d2-4631-90a4-7cb731681e88/r)中看到完整的步骤序列，以及延迟和其他元数据。
+
+<Tip>
+    你可以使用 [LangGraph](/oss/python/langgraph/overview) 框架直接添加更深层次的控制和定制——例如，你可以添加步骤来评估文档相关性并重写搜索查询。查看 LangGraph 的 [Agentic RAG 教程](/oss/python/langgraph/agentic-rag)以获取更高级的表述。
+</Tip>
+
+
+### RAG 链
+
+在上面的[基于智能体的 RAG](#rag-agents) 表述中，我们允许 LLM 自行决定是否生成[工具调用](/oss/python/langchain/models#tool-calling)来帮助回答用户查询。这是一个很好的通用解决方案，但也有一些权衡：
+
+| ✅ 优点                                                                 | ⚠️ 缺点                                                                 |
+|-----------------------------------------------------------------------------|----------------------------------------------------------------------------|
+| **仅在需要时搜索** – LLM 可以处理问候语、后续问题和简单查询，而不会触发不必要的搜索。 | **两次推理调用** – 当执行搜索时，需要一次调用来生成查询，另一次调用来产生最终响应。 |
+| **上下文相关的搜索查询** – 通过将搜索视为带有 `query` 输入的工具，LLM 可以构建自己的查询，融入对话上下文。 | **控制力减弱** – LLM 可能在确实需要搜索时跳过搜索，或者在不需要时进行额外搜索。 |
+| **允许多次搜索** – LLM 可以为支持单个用户查询而执行多次搜索。 |                                                                            |
+
+
+另一种常见的方法是两步链，在这种方法中，我们总是运行一次搜索（可能使用原始用户查询），并将结果作为上下文合并到单个 LLM 查询中。这导致每个查询只有一次推理调用，以牺牲灵活性为代价换取更低的延迟。
+
+在这种方法中，我们不再在循环中调用模型，而是进行单次传递。
+
+我们可以通过从智能体中移除工具，并将检索步骤合并到自定义提示中来实现这个链：
+
+```python
+from langchain.agents.middleware import dynamic_prompt, ModelRequest
+
+@dynamic_prompt
+def prompt_with_context(request: ModelRequest) -> str:
+    """Inject context into state messages."""
+    last_query = request.state["messages"][-1].text
+    retrieved_docs = vector_store.similarity_search(last_query)
+
+    docs_content = "\n\n".join(doc.page_content for doc in retrieved_docs)
+
+    system_message = (
+        "You are a helpful assistant. Use the following context in your response:"
+        f"\n\n{docs_content}"
+    )
+
+    return system_message
+
+
+agent = create_agent(model, tools=[], middleware=[prompt_with_context])
+```
+
+
+
+让我们试试这个：
+```python
+query = "What is task decomposition?"
+for step in agent.stream(
+    {"messages": [{"role": "user", "content": query}]},
+    stream_mode="values",
+):
+    step["messages"][-1].pretty_print()
+```
+```
+================================ Human Message =================================
+
+What is task decomposition?
+================================== Ai Message ==================================
+
+Task decomposition is...
+```
+
+
+在 [LangSmith 追踪记录](https://smith.langchain.com/public/0322904b-bc4c-4433-a568-54c6b31bbef4/r/9ef1c23e-380e-46bf-94b3-d8bb33df440c)中，我们可以看到检索到的上下文被合并到了模型提示中。
+
+对于受限环境中的简单查询，当我们通常确实希望通过语义搜索运行用户查询以拉取额外上下文时，这是一种快速有效的方法。
+
+<Accordion title="返回源文档">
+
+上面的 [RAG 链](#rag-chains) 将检索到的上下文合并到该次运行的单个系统消息中。
+
+与[基于智能体的 RAG](#rag-agents) 表述一样，我们有时希望将原始源文档包含在应用程序状态中，以便访问文档元数据。对于两步链的情况，我们可以通过以下方式实现：
+
+1. 向状态添加一个键来存储检索到的文档
+2. 通过一个[模型前钩子](/oss/python/langchain/agents#pre-model-hook)添加一个新节点来填充该键（并注入上下文）。
+
+```python
+from typing import Any
+from langchain_core.documents import Document
+from langchain.agents.middleware import AgentMiddleware, AgentState
+
+
+class State(AgentState):
+    context: list[Document]
+
+
+class RetrieveDocumentsMiddleware(AgentMiddleware[State]):
+    state_schema = State
+
+    def before_model(self, state: AgentState) -> dict[str, Any] | None:
+        last_message = state["messages"][-1]
+        retrieved_docs = vector_store.similarity_search(last_message.text)
+
+        docs_content = "\n\n".join(doc.page_content for doc in retrieved_docs)
+
+        augmented_message_content = (
+            f"{last_message.text}\n\n"
+            "Use the following context to answer the query:\n"
+            f"{docs_content}"
+        )
+        return {
+            "messages": [last_message.model_copy(update={"content": augmented_message_content})],
+            "context": retrieved_docs,
+        }
+
+
+agent = create_agent(
+    llm,
+    tools=[],
+    middleware=[RetrieveDocumentsMiddleware()],
+)
+```
+
+
+</Accordion>
+
+
+## 后续步骤
+
+现在我们已经通过 [`create_agent`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.create_agent) 实现了一个简单的 RAG 应用，我们可以轻松地加入新功能并进行更深入的探索：
+
+- [流式传输](/oss/python/langchain/streaming)令牌和其他信息以实现响应式用户体验
+- 添加[对话记忆](/oss/python/langchain/short-term-memory)以支持多轮交互
+- 添加[长期记忆](/oss/python/langchain/long-term-memory)以支持跨对话线程的记忆
+- 添加[结构化响应](/oss/python/langchain/structured-output)
+- 使用 [LangSmith Deployments](/langsmith/deployments) 部署你的应用
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/rag.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for    real-time answers.
+</Tip>

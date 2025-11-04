@@ -1,0 +1,57 @@
+---
+title: Install LangChain
+sidebarTitle: Install
+---
+
+要安装 LangChain 包：
+
+<CodeGroup>
+    ```bash pip
+    pip install -U langchain
+    ```
+
+    ```bash uv
+    uv add langchain
+    ```
+
+</CodeGroup>
+
+
+
+
+LangChain 提供了与数百个 LLM 和数千个其他组件的集成。这些功能存在于独立的供应商包中。例如：
+
+<CodeGroup>
+    ```bash pip
+    # Installing the OpenAI integration
+    pip install -U langchain-openai
+
+    # Installing the Anthropic integration
+    pip install -U langchain-anthropic
+    ```
+    ```bash uv
+    # Installing the OpenAI integration
+    uv add langchain-openai
+
+    # Installing the Anthropic integration
+    uv add langchain-anthropic
+    ```
+
+</CodeGroup>
+
+
+
+
+
+<Tip>
+查看 [集成标签页](/oss/python/integrations/providers/overview) 获取完整的可用集成列表。
+</Tip>
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/install.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for    real-time answers.
+</Tip>

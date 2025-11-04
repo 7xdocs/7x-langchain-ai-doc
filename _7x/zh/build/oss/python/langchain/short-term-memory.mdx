@@ -1,0 +1,670 @@
+---
+title: Short-term memory
+---
+
+
+
+## 概述
+
+记忆是一个能够记住先前交互信息的系统。对于AI智能体而言，记忆至关重要，因为它能让智能体记住之前的交互、从反馈中学习并适应用户偏好。随着智能体处理更复杂的任务和大量用户交互，这种能力对于效率和用户满意度都变得至关重要。
+
+短期记忆使您的应用程序能够记住单个线程或对话中的先前交互。
+
+<Note>
+    线程在一个会话中组织多次交互，类似于电子邮件将消息分组在单个对话中的方式。
+</Note>
+
+对话历史是最常见的短期记忆形式。长对话对当今的LLM构成了挑战；完整的对话历史可能无法放入LLM的上下文窗口中，从而导致上下文丢失或错误。
+
+即使您的模型支持完整的上下文长度，大多数LLM在长上下文上的表现仍然不佳。它们会被过时或离题的内容"分散注意力"，同时还要承受响应时间变慢和成本增加的困扰。
+
+聊天模型使用[消息](/oss/python/langchain/messages)来接受上下文，这些消息包括指令（系统消息）和输入（人类消息）。在聊天应用程序中，消息在人类输入和模型响应之间交替，导致消息列表随着时间的推移而变长。由于上下文窗口是有限的，许多应用程序可以通过使用技术来移除或"遗忘"过时信息而受益。
+
+## 使用方法
+
+要为智能体添加短期记忆（线程级持久化），您需要在创建智能体时指定一个 `checkpointer`。
+
+<Info>
+    LangChain的智能体将短期记忆作为您智能体状态的一部分进行管理。
+
+    通过将这些存储在图的state中，智能体可以访问给定对话的完整上下文，同时保持不同线程之间的分离。
+
+    使用检查点器将状态持久化到数据库（或内存）中，以便可以随时恢复线程。
+
+    短期记忆在调用智能体或完成步骤（如工具调用）时更新，并且在每个步骤开始时读取状态。
+</Info>
+
+```python
+from langchain.agents import create_agent
+from langgraph.checkpoint.memory import InMemorySaver  # [!code highlight]
+
+
+agent = create_agent(
+    "openai:gpt-5",
+    [get_user_info],
+    checkpointer=InMemorySaver(),  # [!code highlight]
+)
+
+agent.invoke(
+    {"messages": [{"role": "user", "content": "Hi! My name is Bob."}]},
+    {"configurable": {"thread_id": "1"}},  # [!code highlight]
+)
+```
+
+
+
+### 在生产环境中
+
+在生产环境中，使用由数据库支持的检查点器：
+
+```shell
+pip install langgraph-checkpoint-postgres
+```
+
+```python
+from langchain.agents import create_agent
+
+from langgraph.checkpoint.postgres import PostgresSaver  # [!code highlight]
+
+
+DB_URI = "postgresql://postgres:postgres@localhost:5442/postgres?sslmode=disable"
+with PostgresSaver.from_conn_string(DB_URI) as checkpointer:
+    checkpointer.setup() # auto create tables in PostgresSql
+    agent = create_agent(
+        "openai:gpt-5",
+        [get_user_info],
+        checkpointer=checkpointer,  # [!code highlight]
+    )
+```
+
+
+
+
+## 自定义智能体记忆
+
+默认情况下，智能体使用 [`AgentState`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.AgentState) 来管理短期记忆，特别是通过 `messages` 键管理对话历史。
+
+您可以扩展 [`AgentState`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.AgentState) 来添加额外的字段。自定义状态模式通过 [`state_schema`](https://reference.langchain.com/python/langchain/middleware/#langchain.agents.middleware.AgentMiddleware.state_schema) 参数传递给 [`create_agent`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.create_agent)。
+
+```python
+from langchain.agents import create_agent, AgentState
+from langgraph.checkpoint.memory import InMemorySaver
+
+
+class CustomAgentState(AgentState):  # [!code highlight]
+    user_id: str  # [!code highlight]
+    preferences: dict  # [!code highlight]
+
+agent = create_agent(
+    "openai:gpt-5",
+    [get_user_info],
+    state_schema=CustomAgentState,  # [!code highlight]
+    checkpointer=InMemorySaver(),
+)
+
+# Custom state can be passed in invoke
+result = agent.invoke(
+    {
+        "messages": [{"role": "user", "content": "Hello"}],
+        "user_id": "user_123",  # [!code highlight]
+        "preferences": {"theme": "dark"}  # [!code highlight]
+    },
+    {"configurable": {"thread_id": "1"}})
+```
+
+
+
+## 常见模式
+
+启用[短期记忆](#add-short-term-memory)后，长对话可能会超过LLM的上下文窗口。常见的解决方案有：
+
+<CardGroup cols={2}>
+    <Card title="修剪消息" icon="scissors" href="#trim-messages" arrow>
+        移除最先或最后N条消息（在调用LLM之前）
+    </Card>
+    <Card title="删除消息" icon="trash" href="#delete-messages" arrow>
+        从LangGraph状态中永久删除消息
+    </Card>
+    <Card title="总结消息" icon="layer-group" href="#summarize-messages" arrow>
+        总结历史中较早的消息并用摘要替换它们
+    </Card>
+    <Card title="自定义策略" icon="gears">
+        自定义策略（例如，消息过滤等）
+    </Card>
+</CardGroup>
+
+这允许智能体跟踪对话而不超过LLM的上下文窗口。
+
+### 修剪消息
+
+大多数LLM有一个最大支持的上下文窗口（以令牌数计）。
+
+决定何时截断消息的一种方法是计算消息历史中的令牌数，并在接近该限制时进行截断。如果您使用LangChain，可以使用修剪消息工具并指定要从列表中保留的令牌数量，以及用于处理边界的`strategy`（例如，保留最后`max_tokens`）。
+
+
+
+要在智能体中修剪消息历史，请使用 [`@before_model`](https://reference.langchain.com/python/langchain/middleware/#langchain.agents.middleware.before_model) 中间件装饰器：
+
+```python
+from langchain.messages import RemoveMessage
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
+from langgraph.checkpoint.memory import InMemorySaver
+from langchain.agents import create_agent, AgentState
+from langchain.agents.middleware import before_model
+from langgraph.runtime import Runtime
+from langchain_core.runnables import RunnableConfig
+from typing import Any
+
+
+@before_model
+def trim_messages(state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
+    """Keep only the last few messages to fit context window."""
+    messages = state["messages"]
+
+    if len(messages) <= 3:
+        return None  # No changes needed
+
+    first_msg = messages[0]
+    recent_messages = messages[-3:] if len(messages) % 2 == 0 else messages[-4:]
+    new_messages = [first_msg] + recent_messages
+
+    return {
+        "messages": [
+            RemoveMessage(id=REMOVE_ALL_MESSAGES),
+            *new_messages
+        ]
+    }
+
+agent = create_agent(
+    model,
+    tools=tools,
+    middleware=[trim_messages],
+    checkpointer=InMemorySaver(),
+)
+
+config: RunnableConfig = {"configurable": {"thread_id": "1"}}
+
+agent.invoke({"messages": "hi, my name is bob"}, config)
+agent.invoke({"messages": "write a short poem about cats"}, config)
+agent.invoke({"messages": "now do the same but for dogs"}, config)
+final_response = agent.invoke({"messages": "what's my name?"}, config)
+
+final_response["messages"][-1].pretty_print()
+"""
+================================== Ai Message ==================================
+
+Your name is Bob. You told me that earlier.
+If you'd like me to call you a nickname or use a different name, just say the word.
+"""
+```
+
+
+
+
+### 删除消息
+
+您可以从图状态中删除消息来管理消息历史。
+
+当您想要移除特定消息或清除整个消息历史时，这非常有用。
+
+要从图状态中删除消息，您可以使用 `RemoveMessage`。
+
+要使 `RemoveMessage` 工作，您需要使用带有 [`add_messages`](https://reference.langchain.com/python/langgraph/graphs/#langgraph.graph.message.add_messages) [reducer](/oss/python/langchain/graph-api#reducers) 的状态键。
+
+默认的 [`AgentState`](https://reference.langchain.com/python/langchain/agents/#langchain.agents.AgentState) 提供了这个。
+
+要移除特定消息：
+
+```python
+from langchain.messages import RemoveMessage  # [!code highlight]
+
+def delete_messages(state):
+    messages = state["messages"]
+    if len(messages) > 2:
+        # remove the earliest two messages
+        return {"messages": [RemoveMessage(id=m.id) for m in messages[:2]]}  # [!code highlight]
+```
+
+要移除**所有**消息：
+
+```python
+from langgraph.graph.message import REMOVE_ALL_MESSAGES  # [!code highlight]
+
+def delete_messages(state):
+    return {"messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES)]}  # [!code highlight]
+```
+
+
+
+
+<Warning>
+    删除消息时，**请确保**生成的消息历史是有效的。检查您使用的LLM提供商的限制。例如：
+
+    * 一些提供商期望消息历史以 `user` 消息开始
+    * 大多数提供商要求带有工具调用的 `assistant` 消息后面跟着相应的 `tool` 结果消息。
+</Warning>
+
+```python
+from langchain.messages import RemoveMessage
+from langchain.agents import create_agent, AgentState
+from langchain.agents.middleware import after_model
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.runtime import Runtime
+from langchain_core.runnables import RunnableConfig
+
+
+@after_model
+def delete_old_messages(state: AgentState, runtime: Runtime) -> dict | None:
+    """Remove old messages to keep conversation manageable."""
+    messages = state["messages"]
+    if len(messages) > 2:
+        # remove the earliest two messages
+        return {"messages": [RemoveMessage(id=m.id) for m in messages[:2]]}
+    return None
+
+
+agent = create_agent(
+    "openai:gpt-5-nano",
+    tools=[],
+    system_prompt="Please be concise and to the point.",
+    middleware=[delete_old_messages],
+    checkpointer=InMemorySaver(),
+)
+
+config: RunnableConfig = {"configurable": {"thread_id": "1"}}
+
+for event in agent.stream(
+    {"messages": [{"role": "user", "content": "hi! I'm bob"}]},
+    config,
+    stream_mode="values",
+):
+    print([(message.type, message.content) for message in event["messages"]])
+
+for event in agent.stream(
+    {"messages": [{"role": "user", "content": "what's my name?"}]},
+    config,
+    stream_mode="values",
+):
+    print([(message.type, message.content) for message in event["messages"]])
+```
+
+```
+[('human', "hi! I'm bob")]
+[('human', "hi! I'm bob"), ('ai', 'Hi Bob! Nice to meet you. How can I help you today? I can answer questions, brainstorm ideas, draft text, explain things, or help with code.')]
+[('human', "hi! I'm bob"), ('ai', 'Hi Bob! Nice to meet you. How can I help you today? I can answer questions, brainstorm ideas, draft text, explain things, or help with code.'), ('human', "what's my name?")]
+[('human', "hi! I'm bob"), ('ai', 'Hi Bob! Nice to meet you. How can I help you today? I can answer questions, brainstorm ideas, draft text, explain things, or help with code.'), ('human', "what's my name?"), ('ai', 'Your name is Bob. How can I help you today, Bob?')]
+[('human', "what's my name?"), ('ai', 'Your name is Bob. How can I help you today, Bob?')]
+```
+
+
+
+
+### 总结消息
+
+如上所示，修剪或移除消息的问题在于，您可能会因为删减消息队列而丢失信息。
+因此，一些应用程序受益于使用聊天模型总结消息历史的更复杂方法。
+
+![](/oss/images/summary.png)
+
+
+要在智能体中总结消息历史，请使用内置的 [``SummarizationMiddleware``](/oss/python/langchain/middleware#summarization)：
+
+```python
+from langchain.agents import create_agent
+from langchain.agents.middleware import SummarizationMiddleware
+from langgraph.checkpoint.memory import InMemorySaver
+from langchain_core.runnables import RunnableConfig
+
+
+checkpointer = InMemorySaver()
+
+agent = create_agent(
+    model="openai:gpt-4o",
+    tools=[],
+    middleware=[
+        SummarizationMiddleware(
+            model="openai:gpt-4o-mini",
+            max_tokens_before_summary=4000,  # Trigger summarization at 4000 tokens
+            messages_to_keep=20,  # Keep last 20 messages after summary
+        )
+    ],
+    checkpointer=checkpointer,
+)
+
+config: RunnableConfig = {"configurable": {"thread_id": "1"}}
+agent.invoke({"messages": "hi, my name is bob"}, config)
+agent.invoke({"messages": "write a short poem about cats"}, config)
+agent.invoke({"messages": "now do the same but for dogs"}, config)
+final_response = agent.invoke({"messages": "what's my name?"}, config)
+
+final_response["messages"][-1].pretty_print()
+"""
+================================== Ai Message ==================================
+
+Your name is Bob!
+"""
+```
+
+有关更多配置选项，请参见 [`SummarizationMiddleware`](/oss/python/langchain/middleware#summarization)。
+
+
+
+## 访问记忆
+
+您可以通过多种方式访问和修改智能体的短期记忆（状态）：
+
+### 工具
+
+#### 在工具中读取短期记忆
+
+使用 `ToolRuntime` 参数在工具中访问短期记忆（状态）。
+
+`tool_runtime` 参数对工具签名是隐藏的（因此模型看不到它），但工具可以通过它访问状态。
+
+```python
+from langchain.agents import create_agent, AgentState
+from langchain.tools import tool, ToolRuntime
+
+
+class CustomState(AgentState):
+    user_id: str
+
+@tool
+def get_user_info(
+    runtime: ToolRuntime
+) -> str:
+    """Look up user info."""
+    user_id = runtime.state["user_id"]
+    return "User is John Smith" if user_id == "user_123" else "Unknown user"
+
+agent = create_agent(
+    model="openai:gpt-5-nano",
+    tools=[get_user_info],
+    state_schema=CustomState,
+)
+
+result = agent.invoke({
+    "messages": "look up user information",
+    "user_id": "user_123"
+})
+print(result["messages"][-1].content)
+# > User is John Smith.
+```
+
+
+
+#### 从工具写入短期记忆
+
+要在执行期间修改智能体的短期记忆（状态），您可以直接从工具返回状态更新。
+
+这对于持久化中间结果或使信息对后续工具或提示可访问非常有用。
+
+```python
+from langchain.tools import tool, ToolRuntime
+from langchain_core.runnables import RunnableConfig
+from langchain.messages import ToolMessage
+from langchain.agents import create_agent, AgentState
+from langgraph.types import Command
+from pydantic import BaseModel
+
+
+class CustomState(AgentState):  # [!code highlight]
+    user_name: str
+
+class CustomContext(BaseModel):
+    user_id: str
+
+@tool
+def update_user_info(
+    runtime: ToolRuntime[CustomContext, CustomState],
+) -> Command:
+    """Look up and update user info."""
+    user_id = runtime.context.user_id  # [!code highlight]
+    name = "John Smith" if user_id == "user_123" else "Unknown user"
+    return Command(update={
+        "user_name": name,
+        # update the message history
+        "messages": [
+            ToolMessage(
+                "Successfully looked up user information",
+                tool_call_id=runtime.tool_call_id
+            )
+        ]
+    })
+
+@tool
+def greet(
+    runtime: ToolRuntime[CustomContext, CustomState]
+) -> str:
+    """Use this to greet the user once you found their info."""
+    user_name = runtime.state["user_name"]
+    return f"Hello {user_name}!"
+  # [!code highlight]
+agent = create_agent(
+    model="openai:gpt-5-nano",
+    tools=[update_user_info, greet],
+    state_schema=CustomState,
+    context_schema=CustomContext,  # [!code highlight]
+)
+
+agent.invoke(
+    {"messages": [{"role": "user", "content": "greet the user"}]},
+    context=CustomContext(user_id="user_123"),
+)
+```
+
+
+
+
+### 提示
+
+在中间件中访问短期记忆（状态），以基于对话历史或自定义状态字段创建动态提示。
+
+```python
+from langchain.messages import AnyMessage
+from langchain.agents import create_agent, AgentState
+from typing import TypedDict
+
+
+class CustomContext(TypedDict):
+    user_name: str
+
+
+from langchain.agents.middleware import dynamic_prompt, ModelRequest
+
+def get_weather(city: str) -> str:
+    """Get the weather in a city."""
+    return f"The weather in {city} is always sunny!"
+
+
+@dynamic_prompt
+def dynamic_system_prompt(request: ModelRequest) -> str:
+    user_name = request.runtime.context["user_name"]
+    system_prompt = f"You are a helpful assistant. Address the user as {user_name}."
+    return system_prompt
+
+
+agent = create_agent(
+    model="openai:gpt-5-nano",
+    tools=[get_weather],
+    middleware=[dynamic_system_prompt],
+    context_schema=CustomContext,
+)
+
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "What is the weather in SF?"}]},
+    context=CustomContext(user_name="John Smith"),
+)
+for msg in result["messages"]:
+    msg.pretty_print()
+```
+
+```shell title="Output"
+================================ Human Message =================================
+
+What is the weather in SF?
+================================== Ai Message ==================================
+Tool Calls:
+  get_weather (call_WFQlOGn4b2yoJrv7cih342FG)
+ Call ID: call_WFQlOGn4b2yoJrv7cih342FG
+  Args:
+    city: San Francisco
+================================= Tool Message =================================
+Name: get_weather
+
+The weather in San Francisco is always sunny!
+================================== Ai Message ==================================
+
+Hi John Smith, the weather in San Francisco is always sunny!
+```
+
+
+
+### 模型调用前
+
+在 [`@before_model`](https://reference.langchain.com/python/langchain/middleware/#langchain.agents.middleware.before_model) 中间件中访问短期记忆（状态），以在模型调用之前处理消息。
+
+
+```mermaid
+%%{
+    init: {
+        "fontFamily": "monospace",
+        "flowchart": {
+        "curve": "basis"
+        },
+        "themeVariables": {"edgeLabelBackground": "transparent"}
+    }
+}%%
+graph TD
+    S(["\_\_start\_\_"])
+    PRE(before_model)
+    MODEL(model)
+    TOOLS(tools)
+    END(["\_\_end\_\_"])
+    S --> PRE
+    PRE --> MODEL
+    MODEL -.-> TOOLS
+    MODEL -.-> END
+    TOOLS --> PRE
+    classDef blueHighlight fill:#0a1c25,stroke:#0a455f,color:#bae6fd;
+    class S blueHighlight;
+    class END blueHighlight;
+```
+
+```python
+from langchain.messages import RemoveMessage
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
+from langgraph.checkpoint.memory import InMemorySaver
+from langchain.agents import create_agent, AgentState
+from langchain.agents.middleware import before_model
+from langgraph.runtime import Runtime
+from typing import Any
+
+
+@before_model
+def trim_messages(state: AgentState, runtime: Runtime) -> dict[str, Any] | None:
+    """Keep only the last few messages to fit context window."""
+    messages = state["messages"]
+
+    if len(messages) <= 3:
+        return None  # No changes needed
+
+    first_msg = messages[0]
+    recent_messages = messages[-3:] if len(messages) % 2 == 0 else messages[-4:]
+    new_messages = [first_msg] + recent_messages
+
+    return {
+        "messages": [
+            RemoveMessage(id=REMOVE_ALL_MESSAGES),
+            *new_messages
+        ]
+    }
+
+agent = create_agent(
+    model,
+    tools=tools,
+    middleware=[trim_messages]
+)
+
+config: RunnableConfig = {"configurable": {"thread_id": "1"}}
+
+agent.invoke({"messages": "hi, my name is bob"}, config)
+agent.invoke({"messages": "write a short poem about cats"}, config)
+agent.invoke({"messages": "now do the same but for dogs"}, config)
+final_response = agent.invoke({"messages": "what's my name?"}, config)
+
+final_response["messages"][-1].pretty_print()
+"""
+================================== Ai Message ==================================
+
+Your name is Bob. You told me that earlier.
+If you'd like me to call you a nickname or use a different name, just say the word.
+"""
+```
+
+
+
+### 模型调用后
+
+在 [`@after_model`](https://reference.langchain.com/python/langchain/middleware/#langchain.agents.middleware.after_model) 中间件中访问短期记忆（状态），以在模型调用之后处理消息。
+
+```mermaid
+%%{
+    init: {
+        "fontFamily": "monospace",
+        "flowchart": {
+        "curve": "basis"
+        },
+        "themeVariables": {"edgeLabelBackground": "transparent"}
+    }
+}%%
+graph TD
+    S(["\_\_start\_\_"])
+    MODEL(model)
+    POST(after_model)
+    TOOLS(tools)
+    END(["\_\_end\_\_"])
+    S --> MODEL
+    MODEL --> POST
+    POST -.-> END
+    POST -.-> TOOLS
+    TOOLS --> MODEL
+    classDef blueHighlight fill:#0a1c25,stroke:#0a455f,color:#bae6fd;
+    class S blueHighlight;
+    class END blueHighlight;
+    class POST greenHighlight;
+```
+
+```python
+from langchain.messages import RemoveMessage
+from langgraph.checkpoint.memory import InMemorySaver
+from langchain.agents import create_agent, AgentState
+from langchain.agents.middleware import after_model
+from langgraph.runtime import Runtime
+
+
+@after_model
+def validate_response(state: AgentState, runtime: Runtime) -> dict | None:
+    """Remove messages containing sensitive words."""
+    STOP_WORDS = ["password", "secret"]
+    last_message = state["messages"][-1]
+    if any(word in last_message.content for word in STOP_WORDS):
+        return {"messages": [RemoveMessage(id=last_message.id)]}
+    return None
+
+agent = create_agent(
+    model="openai:gpt-5-nano",
+    tools=[],
+    middleware=[validate_response],
+    checkpointer=InMemorySaver(),
+)
+```
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/short-term-memory.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for    real-time answers.
+</Tip>

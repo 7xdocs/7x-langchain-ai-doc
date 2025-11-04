@@ -1,0 +1,556 @@
+---
+title: 使用 LangChain 构建 RAG 智能体
+sidebarTitle: RAG 智能体
+---
+
+import ChatModelTabsPy from '/snippets/chat-model-tabs.mdx';
+import ChatModelTabsJS from '/snippets/chat-model-tabs-js.mdx';
+import EmbeddingsTabsPy from '/snippets/embeddings-tabs-py.mdx';
+import EmbeddingsTabsJS from '/snippets/embeddings-tabs-js.mdx';
+import VectorstoreTabsPy from '/snippets/vectorstore-tabs-py.mdx';
+import VectorstoreTabsJS from '/snippets/vectorstore-tabs-js.mdx';
+
+
+## 概述
+
+由大语言模型（LLMs）实现的最强大应用之一是复杂的问答（Q&A）聊天机器人。这些应用能够回答关于特定源信息的问题。它们使用一种称为检索增强生成（Retrieval Augmented Generation）或 [RAG](/oss/javascript/langchain/retrieval/) 的技术。
+
+本教程将展示如何基于非结构化文本数据源构建一个简单的问答应用。我们将演示：
+
+1. 一个使用简单工具执行搜索的 RAG [智能体](#rag-agents)。这是一个很好的通用实现。
+2. 一个两步 RAG [链](#rag-chains)，每个查询仅使用一次 LLM 调用。对于简单查询来说，这是一种快速有效的方法。
+
+### 概念
+
+我们将涵盖以下概念：
+
+- **索引**：一个从源摄取数据并为其建立索引的流程。*这通常在一个单独的进程中发生。*
+
+- **检索与生成**：实际的 RAG 过程，它在运行时接收用户查询，从索引中检索相关数据，然后将其传递给模型。
+
+一旦我们为数据建立了索引，我们将使用一个[智能体](/oss/javascript/langchain/agents)作为我们的编排框架来实现检索和生成步骤。
+
+<Note>
+    本教程的索引部分主要遵循[语义搜索教程](/oss/javascript/langchain/knowledge-base)。
+
+    如果你的数据已经可供搜索（即，你有一个执行搜索的函数），或者你对那个教程的内容已经熟悉，可以跳过[检索与生成](#2-retrieval-and-generation)部分。
+</Note>
+
+### 预览
+
+在本指南中，我们将构建一个回答关于网站内容问题的应用。我们将使用的具体网站是 Lilian Weng 的 [LLM Powered Autonomous Agents](https://lilianweng.github.io/posts/2023-06-23-agent/) 博客文章，它允许我们就该文章的内容提问。
+
+我们可以用大约 40 行代码创建一个简单的索引流程和 RAG 链来实现这一点。完整代码片段如下：
+
+<Accordion title="展开查看完整代码片段">
+
+
+```typescript
+import "cheerio";
+import { createAgent, tool } from "langchain";
+import { CheerioWebBaseLoader } from "@langchain/community/document_loaders/web/cheerio";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import * as z from "zod";
+
+// Load and chunk contents of blog
+const pTagSelector = "p";
+const cheerioLoader = new CheerioWebBaseLoader(
+  "https://lilianweng.github.io/posts/2023-06-23-agent/",
+  {
+    selector: pTagSelector
+  }
+);
+
+const docs = await cheerioLoader.load();
+
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200
+});
+const allSplits = await splitter.splitDocuments(docs);
+
+// Index chunks
+await vectorStore.addDocuments(allSplits)
+
+// Construct a tool for retrieving context
+const retrieveSchema = z.object({ query: z.string() });
+
+const retrieve = tool(
+  async ({ query }) => {
+    const retrievedDocs = await vectorStore.similaritySearch(query, 2);
+    const serialized = retrievedDocs
+      .map(
+        (doc) => `Source: ${doc.metadata.source}\nContent: ${doc.pageContent}`
+      )
+      .join("\n");
+    return [serialized, retrievedDocs];
+  },
+  {
+    name: "retrieve",
+    description: "Retrieve information related to a query.",
+    schema: retrieveSchema,
+    responseFormat: "content_and_artifact",
+  }
+);
+
+const agent = createAgent({ model: "openai:gpt-5", tools: [retrieve] });
+```
+```typescript
+let inputMessage = `What is Task Decomposition?`;
+
+let agentInputs = { messages: [{ role: "user", content: inputMessage }] };
+
+for await (const step of await agent.stream(agentInputs, {
+  streamMode: "values",
+})) {
+  const lastMessage = step.messages[step.messages.length - 1];
+  prettyPrint(lastMessage);
+  console.log("-----\n");
+}
+```
+
+
+查看 [LangSmith 追踪记录](https://smith.langchain.com/public/a117a1f8-c96c-4c16-a285-00b85646118e/r)。
+
+</Accordion>
+
+## 设置
+
+
+### 安装
+
+本教程需要以下 langchain 依赖项：
+
+
+<CodeGroup>
+```bash npm
+npm i langchain @langchain/community @langchain/textsplitters
+```
+```bash yarn
+yarn add langchain @langchain/community @langchain/textsplitters
+```
+```bash pnpm
+pnpm add langchain @langchain/community @langchain/textsplitters
+```
+</CodeGroup>
+
+
+
+更多详细信息，请参阅我们的[安装指南](/oss/javascript/langchain/install)。
+
+### LangSmith
+
+你使用 LangChain 构建的许多应用将包含多个步骤和多次 LLM 调用。随着这些应用变得越来越复杂，能够检查你的链或智能体内部究竟发生了什么变得至关重要。最好的方法是使用 [LangSmith](https://smith.langchain.com)。
+
+在以上链接注册后，请确保设置你的环境变量以开始记录追踪记录：
+
+```shell
+export LANGSMITH_TRACING="true"
+export LANGSMITH_API_KEY="..."
+```
+
+
+
+### 组件
+
+我们将需要从 LangChain 的集成套件中选择三个组件。
+
+选择一个聊天模型：
+
+<ChatModelTabsJS />
+
+
+选择一个嵌入模型：
+
+<EmbeddingsTabsJS />
+
+
+选择一个向量存储：
+
+<VectorstoreTabsJS />
+
+
+
+## 1. 索引
+
+<Note>
+**本节是[语义搜索教程](/oss/javascript/langchain/knowledge-base)内容的缩写版本。**
+
+如果你的数据已经建立索引并可供搜索（即，你有一个执行搜索的函数），或者你对[文档加载器](/oss/javascript/langchain/retrieval#document_loaders)、[嵌入](/oss/javascript/langchain/retrieval#embedding_models)和[向量存储](/oss/javascript/langchain/retrieval#vectorstores)已经熟悉，可以跳到下一节关于[检索与生成](/oss/javascript/langchain/rag#2-retrieval-and-generation)的部分。
+
+</Note>
+
+索引通常按以下方式工作：
+
+1. **加载**：首先我们需要加载数据。这通过[文档加载器](/oss/javascript/langchain/retrieval#document_loaders)完成。
+2. **分割**：[文本分割器](/oss/javascript/langchain/retrieval#text_splitters)将大的 `Document` 对象分解成更小的块。这对索引数据和将其传递给模型都很有用，因为大块内容更难搜索，并且可能无法放入模型的有限上下文窗口中。
+3. **存储**：我们需要一个地方来存储和索引我们的分割块，以便以后可以搜索它们。这通常使用[向量存储](/oss/javascript/langchain/retrieval#vectorstores)和[嵌入](/oss/javascript/langchain/retrieval#embedding_models)模型完成。
+
+![index_diagram](/images/rag_indexing.png)
+
+### 加载文档
+
+我们首先需要加载博客文章的内容。我们可以使用[文档加载器](/oss/javascript/langchain/retrieval#document_loaders)来完成这个任务，这些对象从源加载数据并返回一个 [Document](https://v03.api.js.langchain.com/classes/_langchain_core.documents.Document.html) 对象列表。
+
+
+```typescript
+import "cheerio";
+import { CheerioWebBaseLoader } from "@langchain/community/document_loaders/web/cheerio";
+
+const pTagSelector = "p";
+const cheerioLoader = new CheerioWebBaseLoader(
+  "https://lilianweng.github.io/posts/2023-06-23-agent/",
+  {
+    selector: pTagSelector,
+  }
+);
+
+const docs = await cheerioLoader.load();
+
+console.assert(docs.length === 1);
+console.log(`Total characters: ${docs[0].pageContent.length}`);
+```
+```
+Total characters: 22360
+```
+```typescript
+console.log(docs[0].pageContent.slice(0, 500));
+```
+```
+Building agents with LLM (large language model) as its core controller is...
+```
+
+**深入了解**
+
+`DocumentLoader`：从源加载数据作为 `Document` 列表的对象。
+
+- [集成](/oss/javascript/integrations/document_loaders/)：160+ 个集成可供选择。
+- [`BaseLoader`](https://v03.api.js.langchain.com/classes/_langchain_core.document_loaders_base.BaseDocumentLoader.html)：基础接口的 API 参考。
+
+### 分割文档
+
+我们加载的文档超过 42k 个字符，这对于许多模型的上下文窗口来说太长了。即使对于那些可以将完整文章放入其上下文窗口的模型，模型也可能难以在很长的输入中找到信息。
+
+为了处理这个问题，我们将把 [`Document`](https://v03.api.js.langchain.com/classes/_langchain_core.documents.Document.html) 分割成块以便进行嵌入和向量存储。这应该有助于我们在运行时仅检索博客文章中最相关的部分。
+
+与[语义搜索教程](/oss/javascript/langchain/knowledge-base)中一样，我们使用 `RecursiveCharacterTextSplitter`，它将使用常见分隔符（如换行符）递归地分割文档，直到每个块达到适当的大小。这是通用文本用例推荐的文本分割器。
+
+
+```typescript
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+const allSplits = await splitter.splitDocuments(docs);
+console.log(`Split blog post into ${allSplits.length} sub-documents.`);
+```
+```
+Split blog post into 29 sub-documents.
+```
+
+
+
+### 存储文档
+
+现在我们需要索引我们的 66 个文本块，以便我们可以在运行时搜索它们。遵循[语义搜索教程](/oss/javascript/langchain/knowledge-base)，我们的方法是[嵌入](/oss/javascript/langchain/retrieval#embedding_models/)每个文档分割块的内容，并将这些嵌入插入到[向量存储](/oss/javascript/langchain/retrieval#vectorstores/)中。给定一个输入查询，我们可以使用向量搜索来检索相关文档。
+
+我们可以使用在本教程[开始部分](/oss/javascript/langchain/rag#components)选择的向量存储和嵌入模型，通过一个命令来嵌入和存储所有的文档分割块。
+
+
+```typescript
+await vectorStore.addDocuments(allSplits);
+```
+
+**深入了解**
+
+`Embeddings`：文本嵌入模型的包装器，用于将文本转换为嵌入。
+
+- [集成](/oss/javascript/integrations/text_embedding/)：30+ 个集成可供选择。
+- [接口](https://v03.api.js.langchain.com/classes/_langchain_core.embeddings.Embeddings.html)：基础接口的 API 参考。
+
+`VectorStore`：向量数据库的包装器，用于存储和查询嵌入。
+
+- [集成](/oss/javascript/integrations/vectorstores/)：40+ 个集成可供选择。
+- [接口](https://python.langchain.com/api_reference/core/vectorstores/langchain_core.vectorstores.base.VectorStore.html)：基础接口的 API 参考。
+
+这完成了流程的**索引**部分。此时，我们有一个可查询的向量存储，其中包含我们博客文章的块内容。给定一个用户问题，我们理想情况下应该能够返回回答该问题的博客文章片段。
+
+## 2. 检索与生成
+
+RAG 应用通常按以下方式工作：
+
+1. **检索**：给定用户输入，使用[检索器](/oss/javascript/langchain/retrieval#retrievers)从存储中检索相关的分割块。
+2. **生成**：一个[模型](/oss/javascript/langchain/models)使用包含问题和检索到的数据的提示来生成答案。
+
+![retrieval_diagram](/images/rag_retrieval_generation.png)
+
+现在让我们编写实际的应用程序逻辑。我们想要创建一个简单的应用程序，它接收用户问题，搜索与该问题相关的文档，将检索到的文档和初始问题传递给模型，并返回答案。
+
+我们将演示：
+
+1. 一个使用简单工具执行搜索的 RAG [智能体](#rag-agents)。这是一个很好的通用实现。
+2. 一个两步 RAG [链](#rag-chains)，每个查询仅使用一次 LLM 调用。对于简单查询来说，这是一种快速有效的方法。
+
+### RAG 智能体
+
+RAG 应用的一种形式是作为一个带有检索信息工具的简单[智能体](/oss/javascript/langchain/agents)。我们可以通过实现一个包装我们向量存储的[工具](/oss/javascript/langchain/tools)来组装一个最小的 RAG 智能体：
+
+
+```typescript
+import * as z from "zod";
+import { tool } from "@langchain/core/tools";
+
+const retrieveSchema = z.object({ query: z.string() });
+
+const retrieve = tool(
+  async ({ query }) => {
+    const retrievedDocs = await vectorStore.similaritySearch(query, 2);
+    const serialized = retrievedDocs
+      .map(
+        (doc) => `Source: ${doc.metadata.source}\nContent: ${doc.pageContent}`
+      )
+      .join("\n");
+    return [serialized, retrievedDocs];
+  },
+  {
+    name: "retrieve",
+    description: "Retrieve information related to a query.",
+    schema: retrieveSchema,
+    responseFormat: "content_and_artifact",
+  }
+);
+```
+<Tip>
+    这里我们将 `responseFormat` 指定为 `content_and_artifact` 来配置工具，将原始文档作为[工件](/oss/javascript/langchain/messages#param-artifact)附加到每个 [ToolMessage](/oss/javascript/langchain/messages#tool-message)。这将让我们能够在应用程序中访问文档元数据，与发送给模型的字符串化表示分开。
+</Tip>
+
+
+
+
+有了我们的工具，我们可以构建智能体：
+
+
+有了我们的工具，我们可以构建智能体：
+
+```typescript
+import { createAgent } from "langchain";
+
+const tools = [retrieve];
+const systemPrompt = new SystemMessage(
+    "You have access to a tool that retrieves context from a blog post. " +
+    "Use the tool to help answer user queries."
+)
+
+const agent = createAgent({ model: "openai:gpt-5", tools, systemPrompt });
+```
+
+
+让我们测试一下。我们构建一个问题，这个问题通常需要迭代的检索步骤序列来回答：
+
+
+```typescript
+let inputMessage = `What is the standard method for Task Decomposition?
+Once you get the answer, look up common extensions of that method.`;
+
+let agentInputs = { messages: [{ role: "user", content: inputMessage }] };
+
+const stream = await agent.stream(agentInputs, {
+  streamMode: "values",
+});
+for await (const step of stream) {
+  const lastMessage = step.messages[step.messages.length - 1];
+  console.log(`[${lastMessage.role}]: ${lastMessage.content}`);
+  console.log("-----\n");
+}
+```
+```
+[human]: What is the standard method for Task Decomposition?
+Once you get the answer, look up common extensions of that method.
+-----
+
+[ai]:
+Tools:
+- retrieve({"query":"standard method for Task Decomposition"})
+-----
+
+[tool]: Source: https://lilianweng.github.io/posts/2023-06-23-agent/
+Content: hard tasks into smaller and simpler steps...
+Source: https://lilianweng.github.io/posts/2023-06-23-agent/
+Content: System message:Think step by step and reason yourself...
+-----
+
+[ai]:
+Tools:
+- retrieve({"query":"common extensions of Task Decomposition method"})
+-----
+
+[tool]: Source: https://lilianweng.github.io/posts/2023-06-23-agent/
+Content: hard tasks into smaller and simpler steps...
+Source: https://lilianweng.github.io/posts/2023-06-23-agent/
+Content: be provided by other developers (as in Plugins) or self-defined...
+-----
+
+[ai]: ### Standard Method for Task Decomposition
+
+The standard method for task decomposition involves...
+-----
+```
+
+注意，智能体：
+
+1. 生成一个查询来搜索任务分解的标准方法；
+2. 收到答案后，生成第二个查询来搜索其常见扩展；
+3. 收到所有必要的上下文后，回答问题。
+
+我们可以在 [LangSmith 追踪记录](https://smith.langchain.com/public/7b42d478-33d2-4631-90a4-7cb731681e88/r)中看到完整的步骤序列，以及延迟和其他元数据。
+
+<Tip>
+    你可以使用 [LangGraph](/oss/javascript/langgraph/overview) 框架直接添加更深层次的控制和定制——例如，你可以添加步骤来评估文档相关性并重写搜索查询。查看 LangGraph 的 [Agentic RAG 教程](/oss/javascript/langgraph/agentic-rag)以获取更高级的表述。
+</Tip>
+
+
+### RAG 链
+
+在上面的[基于智能体的 RAG](#rag-agents) 表述中，我们允许 LLM 自行决定是否生成[工具调用](/oss/javascript/langchain/models#tool-calling)来帮助回答用户查询。这是一个很好的通用解决方案，但也有一些权衡：
+
+| ✅ 优点                                                                 | ⚠️ 缺点                                                                 |
+|-----------------------------------------------------------------------------|----------------------------------------------------------------------------|
+| **仅在需要时搜索** – LLM 可以处理问候语、后续问题和简单查询，而不会触发不必要的搜索。 | **两次推理调用** – 当执行搜索时，需要一次调用来生成查询，另一次调用来产生最终响应。 |
+| **上下文相关的搜索查询** – 通过将搜索视为带有 `query` 输入的工具，LLM 可以构建自己的查询，融入对话上下文。 | **控制力减弱** – LLM 可能在确实需要搜索时跳过搜索，或者在不需要时进行额外搜索。 |
+| **允许多次搜索** – LLM 可以为支持单个用户查询而执行多次搜索。 |                                                                            |
+
+
+另一种常见的方法是两步链，在这种方法中，我们总是运行一次搜索（可能使用原始用户查询），并将结果作为上下文合并到单个 LLM 查询中。这导致每个查询只有一次推理调用，以牺牲灵活性为代价换取更低的延迟。
+
+在这种方法中，我们不再在循环中调用模型，而是进行单次传递。
+
+我们可以通过从智能体中移除工具，并将检索步骤合并到自定义提示中来实现这个链：
+
+
+```typescript
+import { createAgent, dynamicSystemPromptMiddleware } from "langchain";
+import { SystemMessage } from "@langchain/core/messages";
+
+const agent = createAgent({
+  model,
+  tools: [],
+  middleware: [
+    dynamicSystemPromptMiddleware(async (state) => {
+        const lastQuery = state.messages[state.messages.length - 1].content;
+
+        const retrievedDocs = await vectorStore.similaritySearch(lastQuery, 2);
+
+        const docsContent = retrievedDocs
+        .map((doc) => doc.pageContent)
+        .join("\n\n");
+
+        // Build system message
+        const systemMessage = new SystemMessage(
+        `You are a helpful assistant. Use the following context in your response:\n\n${docsContent}`
+        );
+
+        // Return system + existing messages
+        return [systemMessage, ...state.messages];
+    })
+  ]
+});
+```
+
+
+让我们试试这个：
+
+```typescript
+let inputMessage = `What is Task Decomposition?`;
+
+let chainInputs = { messages: [{ role: "user", content": inputMessage }] };
+
+const stream = await agent.stream(chainInputs, {
+  streamMode: "values",
+})
+for await (const step of stream) {
+  const lastMessage = step.messages[step.messages.length - 1];
+  prettyPrint(lastMessage);
+  console.log("-----\n");
+}
+```
+
+在 [LangSmith 追踪记录](https://smith.langchain.com/public/0322904b-bc4c-4433-a568-54c6b31bbef4/r/9ef1c23e-380e-46bf-94b3-d8bb33df440c)中，我们可以看到检索到的上下文被合并到了模型提示中。
+
+对于受限环境中的简单查询，当我们通常确实希望通过语义搜索运行用户查询以拉取额外上下文时，这是一种快速有效的方法。
+
+<Accordion title="返回源文档">
+
+上面的 [RAG 链](#rag-chains) 将检索到的上下文合并到该次运行的单个系统消息中。
+
+与[基于智能体的 RAG](#rag-agents) 表述一样，我们有时希望将原始源文档包含在应用程序状态中，以便访问文档元数据。对于两步链的情况，我们可以通过以下方式实现：
+
+1. 向状态添加一个键来存储检索到的文档
+2. 通过一个[模型前钩子](/oss/javascript/langchain/agents#pre-model-hook)添加一个新节点来填充该键（并注入上下文）。
+
+
+```typescript
+import { createMiddleware, Document, createAgent } from "langchain";
+import { MessagesZodSchema } from "@langchain/langgraph";
+
+const StateSchema = z.object({
+  messages: MessagesZodSchema,
+  context: z.array(z.custom<Document>()),
+})
+
+const retrieveDocumentsMiddleware = createMiddleware({
+  stateSchema: StateSchema,
+  beforeModel: async (state) => {
+    const lastMessage = state.messages[state.messages.length - 1].content;
+    const retrievedDocs = await vectorStore.similaritySearch(lastMessage, 2);
+
+    const docsContent = retrievedDocs
+      .map((doc) => doc.pageContent)
+      .join("\n\n");
+
+    const augmentedMessageContent = [
+        ...lastMessage.content,
+        { type: "text", text: `Use the following context to answer the query:\n\n${docsContent}` }
+    ]
+
+    // Below we augment each input message with context, but we could also
+    // modify just the system message, as before.
+    return {
+      messages: [{
+        ...lastMessage,
+        content: augmentedMessageContent,
+      }]
+      context: retrievedDocs,
+    }
+  },
+});
+
+const agent = createAgent({
+  model,
+  tools: [],
+  middleware: [retrieveDocumentsMiddleware],
+});
+```
+
+</Accordion>
+
+
+## 后续步骤
+
+现在我们已经通过 @[`create_agent`] 实现了一个简单的 RAG 应用，我们可以轻松地加入新功能并进行更深入的探索：
+
+- [流式传输](/oss/javascript/langchain/streaming)令牌和其他信息以实现响应式用户体验
+- 添加[对话记忆](/oss/javascript/langchain/short-term-memory)以支持多轮交互
+- 添加[长期记忆](/oss/javascript/langchain/long-term-memory)以支持跨对话线程的记忆
+- 添加[结构化响应](/oss/javascript/langchain/structured-output)
+- 使用 [LangSmith Deployments](/langsmith/deployments) 部署你的应用
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/rag.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for    real-time answers.
+</Tip>

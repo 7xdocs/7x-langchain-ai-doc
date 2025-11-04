@@ -1,0 +1,91 @@
+---
+title: LangChain 概述
+sidebarTitle: 概述
+---
+
+<Callout icon="bullhorn" color="#DFC5FE" iconType="regular">
+    **LangChain v1.0 现已发布！**
+
+    有关变更的完整列表以及升级代码的说明，请参阅[发布说明](/oss/python/releases/langchain-v1)和[迁移指南](/oss/python/migrate/langchain-v1)。
+
+    如果您遇到任何问题或有反馈，请[提交问题](https://github.com/langchain-ai/docs/issues/new?template=01-langchain.yml)以便我们改进。要查看 v0.x 文档，[请访问归档网站](https://python.langchain.com/docs/introduction/)。
+</Callout>
+
+
+
+
+LangChain 是开始构建由大语言模型驱动的智能体和应用程序的最简单方式。通过不到 10 行代码，您就可以连接到 OpenAI、Anthropic、Google 以及[更多](/oss/python/integrations/providers/overview)模型。LangChain 提供了预构建的智能体架构和模型集成，帮助您快速入门并无缝地将大语言模型融入您的智能体和应用程序中。
+
+如果您希望快速构建智能体和自主应用程序，我们推荐您使用 LangChain。当您有更高级的需求，需要结合确定性和智能工作流、深度定制以及精细控制的延迟时，请使用我们的底层智能体编排框架和运行时 [LangGraph](/oss/python/langgraph/overview)。
+
+LangChain [智能体](/oss/python/langchain/agents)构建在 LangGraph 之上，以提供持久化执行、流式传输、人在回路、持久化等特性。对于基本的 LangChain 智能体使用，您不需要了解 LangGraph。
+
+## <Icon icon="download" size={20} /> 安装
+
+<CodeGroup>
+```bash pip
+pip install -U langchain
+```
+
+```bash uv
+uv add langchain
+```
+</CodeGroup>
+
+
+
+## <Icon icon="wand-magic-sparkles" /> 创建一个智能体
+
+```python
+# pip install -qU "langchain[anthropic]" to call the model
+
+from langchain.agents import create_agent
+
+def get_weather(city: str) -> str:
+    """Get weather for a given city."""
+    return f"It's always sunny in {city}!"
+
+agent = create_agent(
+    model="anthropic:claude-sonnet-4-5",
+    tools=[get_weather],
+    system_prompt="You are a helpful assistant",
+)
+
+# Run the agent
+agent.invoke(
+    {"messages": [{"role": "user", "content": "what is the weather in sf"}]}
+)
+```
+
+
+
+
+
+## <Icon icon="star" size={20} /> 核心优势
+
+<Columns cols={2}>
+    <Card title="标准化模型接口" icon="arrows-rotate" href="/oss/python/langchain/models" arrow cta="了解更多">
+        不同的提供商有独特的模型交互 API，包括响应格式。LangChain 标准化了您与模型的交互方式，使您可以无缝切换提供商并避免被锁定。
+    </Card>
+
+    <Card title="易于使用、高度灵活的智能体" icon="wand-magic-sparkles" href="/oss/python/langchain/agents" arrow cta="了解更多">
+        LangChain 的智能体抽象设计易于上手，让您用不到 10 行代码就能构建一个简单的智能体。但它也提供了足够的灵活性，允许您进行所有您想要的上下文工程。
+    </Card>
+
+    <Card title="构建于 LangGraph 之上" icon="circle-nodes" href="/oss/python/langgraph/overview" arrow cta="了解更多">
+        LangChain 的智能体构建在 LangGraph 之上。这使我们能够利用 LangGraph 的持久化执行、人在回路支持、持久化等特性。
+    </Card>
+
+    <Card title="使用 LangSmith 进行调试" icon="eye" href="/langsmith/home" arrow cta="了解更多">
+        通过可视化工具深入洞察复杂的智能体行为，这些工具可以追踪执行路径、捕获状态转换并提供详细的运行时指标。
+    </Card>
+</Columns>
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/overview.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for    real-time answers.
+</Tip>

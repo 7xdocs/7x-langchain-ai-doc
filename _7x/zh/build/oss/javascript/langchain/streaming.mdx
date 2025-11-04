@@ -1,0 +1,261 @@
+---
+title: Streaming
+---
+
+LangChain 实现了一套流式传输系统来展示实时更新。
+
+流式传输对于提升基于LLM构建的应用程序的响应能力至关重要。通过在完整响应准备好之前逐步显示输出，流式传输显著改善了用户体验（UX），特别是在处理LLM的延迟时。
+
+## 概述
+
+LangChain 的流式传输系统允许您将智能体运行的实时反馈展示给您的应用程序。
+
+使用 LangChain 流式传输可以实现的功能：
+
+* <Icon icon="brain" size={16} /> [**流式传输智能体进度**](#agent-progress) — 在每次智能体步骤后获取状态更新。
+* <Icon icon="square-binary" size={16} /> [**流式传输 LLM 令牌**](#llm-tokens) — 在语言模型令牌生成时即进行流式传输。
+* <Icon icon="table" size={16} /> [**流式传输自定义更新**](#custom-updates) — 发出用户定义的信号（例如，`"已获取 10/100 条记录"`）。
+* <Icon icon="layer-plus" size={16} /> [**流式传输多种模式**](#stream-multiple-modes) — 从 `updates`（智能体进度）、`messages`（LLM 令牌 + 元数据）或 `custom`（任意用户数据）中选择。
+
+## 智能体进度
+
+
+
+要流式传输智能体进度，请使用 [`stream`](https://langchain-ai.github.io/langgraphjs/reference/classes/langgraph.CompiledStateGraph.html#stream) 方法并设置 `streamMode: "updates"`。这会在每次智能体步骤后发出一个事件。
+
+
+例如，如果您有一个调用一次工具的智能体，您应该会看到以下更新：
+
+* **LLM 节点**：带有工具调用请求的 [`AIMessage`](https://v03.api.js.langchain.com/classes/_langchain_core.messages_ai_message.AIMessage.html)
+* **工具节点**：带有执行结果的 @[`ToolMessage`]
+* **LLM 节点**：最终的 AI 响应
+
+
+
+```typescript
+import z from "zod";
+import { createAgent, tool } from "langchain";
+
+const getWeather = tool(
+    async ({ city }) => {
+        return `The weather in ${city} is always sunny!`;
+    },
+    {
+        name: "get_weather",
+        description: "Get weather for a given city.",
+        schema: z.object({
+        city: z.string(),
+        }),
+    }
+);
+
+const agent = createAgent({
+    model: "openai:gpt-5-nano",
+    tools: [getWeather],
+});
+
+for await (const chunk of await agent.stream(
+    { messages: [{ role: "user", content: "what is the weather in sf" }] },
+    { streamMode: "updates" }
+)) {
+    const [step, content] = Object.entries(chunk)[0];
+    console.log(`step: ${step}`);
+    console.log(`content: ${JSON.stringify(content, null, 2)}`);
+}
+/**
+ * step: model
+ * content: {
+ *   "messages": [
+ *     {
+ *       "kwargs": {
+ *         // ...
+ *         "tool_calls": [
+ *           {
+ *             "name": "get_weather",
+ *             "args": {
+ *               "city": "San Francisco"
+ *             },
+ *             "type": "tool_call",
+ *             "id": "call_0qLS2Jp3MCmaKJ5MAYtr4jJd"
+ *           }
+ *         ],
+ *         // ...
+ *       }
+ *     }
+ *     }
+ *   ]
+ * }
+ * step: tools
+ * content: {
+ *   "messages": [
+ *     {
+ *       "kwargs": {
+ *         "content": "The weather in San Francisco is always sunny!",
+ *         "name": "get_weather",
+ *         // ...
+ *       }
+ *     }
+ *   ]
+ * }
+ * step: model
+ * content: {
+ *   "messages": [
+ *     {
+ *       "kwargs": {
+ *         "content": "The latest update says: The weather in San Francisco is always sunny!\n\nIf you'd like real-time details (current temperature, humidity, wind, and today's forecast), I can pull the latest data for you. Want me to fetch that?",
+ *         // ...
+ *       }
+ *     }
+ *   ]
+ * }
+ */
+```
+
+
+## LLM 令牌
+
+
+
+要流式传输由 LLM 生成的令牌，请使用 `streamMode: "messages"`：
+
+```typescript
+import z from "zod";
+import { createAgent, tool } from "langchain";
+
+const getWeather = tool(
+    async ({ city }) => {
+        return `The weather in ${city} is always sunny!`;
+    },
+    {
+        name: "get_weather",
+        description: "Get weather for a given city.",
+        schema: z.object({
+        city: z.string(),
+        }),
+    }
+);
+
+const agent = createAgent({
+    model: "openai:gpt-4o-mini",
+    tools: [getWeather],
+});
+
+for await (const [token, metadata] of await agent.stream(
+    { messages: [{ role: "user", content: "what is the weather in sf" }] },
+    { streamMode: "messages" }
+)) {
+    console.log(`node: ${metadata.langgraph_node}`);
+    console.log(`content: ${JSON.stringify(token.contentBlocks, null, 2)}`);
+}
+```
+
+
+## 自定义更新
+
+
+
+要流式传输工具执行时的更新，您可以使用配置中的 `writer` 参数。
+
+```typescript
+import z from "zod";
+import { tool, createAgent } from "langchain";
+import { LangGraphRunnableConfig } from "@langchain/langgraph";
+
+const getWeather = tool(
+    async (input, config: LangGraphRunnableConfig) => {
+        // 流式传输任意数据
+        config.writer?.(`Looking up data for city: ${input.city}`);
+        // ... 获取城市数据
+        config.writer?.(`Acquired data for city: ${input.city}`);
+        return `It's always sunny in ${input.city}!`;
+    },
+    {
+        name: "get_weather",
+        description: "Get weather for a given city.",
+        schema: z.object({
+        city: z.string().describe("The city to get weather for."),
+        }),
+    }
+);
+
+const agent = createAgent({
+    model: "openai:gpt-4o-mini",
+    tools: [getWeather],
+});
+
+for await (const chunk of await agent.stream(
+    { messages: [{ role: "user", content: "what is the weather in sf" }] },
+    { streamMode: "custom" }
+)) {
+    console.log(chunk);
+}
+```
+
+```shell title="Output"
+Looking up data for city: San Francisco
+Acquired data for city: San Francisco
+```
+
+<Note>
+    如果您将 `writer` 参数添加到您的工具中，那么在未提供 writer 函数的情况下，您将无法在 LangGraph 执行上下文之外调用该工具。
+</Note>
+
+
+## 流式传输多种模式
+
+
+
+您可以通过将 streamMode 作为数组传递来指定多种流式传输模式：`streamMode: ["updates", "messages", "custom"]`：
+
+```typescript
+import z from "zod";
+import { tool, createAgent } from "langchain";
+import { LangGraphRunnableConfig } from "@langchain/langgraph";
+
+const getWeather = tool(
+    async (input, config: LangGraphRunnableConfig) => {
+        // 流式传输任意数据
+        config.writer?.(`Looking up data for city: ${input.city}`);
+        // ... 获取城市数据
+        config.writer?.(`Acquired data for city: ${input.city}`);
+        return `It's always sunny in ${input.city}!`;
+    },
+    {
+        name: "get_weather",
+        description: "Get weather for a given city.",
+        schema: z.object({
+        city: z.string().describe("The city to get weather for."),
+        }),
+    }
+);
+
+const agent = createAgent({
+    model: "openai:gpt-4o-mini",
+    tools: [getWeather],
+});
+
+for await (const [streamMode, chunk] of await agent.stream(
+    { messages: [{ role: "user", content: "what is the weather in sf" }] },
+    { streamMode: ["updates", "messages", "custom"] }
+)) {
+    console.log(`${streamMode}: ${JSON.stringify(chunk, null, 2)}`);
+}
+```
+
+
+## 禁用流式传输
+
+在某些应用程序中，您可能需要为给定模型禁用单个令牌的流式传输。
+
+这在[多智能体](/oss/javascript/langchain/multi-agent)系统中非常有用，可以控制哪些智能体流式传输其输出。
+
+请参阅[模型](/oss/javascript/langchain/models#disable-streaming)指南以了解如何禁用流式传输。
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/streaming.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for    real-time answers.
+</Tip>

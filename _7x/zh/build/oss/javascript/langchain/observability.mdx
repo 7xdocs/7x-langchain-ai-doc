@@ -1,0 +1,73 @@
+---
+title: Observability
+---
+
+import observability from '/snippets/oss/observability.mdx';
+
+可观测性对于理解智能体在生产环境中的行为至关重要。通过 LangChain 的 @[`create_agent`]，您可以通过 [LangSmith](https://smith.langchain.com/) 获得内置的可观测性功能 - 这是一个用于追踪、调试、评估和监控 LLM 应用程序的强大平台。
+
+追踪记录会捕获智能体执行的每个步骤，从初始用户输入到最终响应，包括所有工具调用、模型交互和决策点。这使您能够调试智能体、评估性能并监控使用情况。
+
+## 先决条件
+
+开始之前，请确保您具备以下条件：
+
+* [LangSmith 账户](https://smith.langchain.com/)（可免费注册）
+
+## 启用追踪
+
+所有 LangChain 智能体都自动支持 LangSmith 追踪。要启用此功能，请设置以下环境变量：
+
+```bash
+export LANGSMITH_TRACING=true
+export LANGSMITH_API_KEY=<your-api-key>
+```
+
+<Info>
+您可以从 [LangSmith 设置](https://smith.langchain.com/settings) 获取 API 密钥。
+</Info>
+
+## 快速开始
+
+无需额外代码即可将追踪记录上传到 LangSmith。只需照常运行智能体代码：
+
+
+
+```ts
+import { createAgent } from "@langchain/agents";
+
+function sendEmail(to: string, subject: string, body: string): string {
+    // ... email sending logic
+    return `Email sent to ${to}`;
+}
+
+function searchWeb(query: string): string {
+    // ... web search logic
+    return `Search results for: ${query}`;
+}
+
+const agent = createAgent({
+    model: "openai:gpt-4o",
+    tools: [sendEmail, searchWeb],
+    systemPrompt: "You are a helpful assistant that can send emails and search the web."
+});
+
+// Run the agent - all steps will be traced automatically
+const response = await agent.invoke({
+    messages: [{ role: "user", content: "Search for the latest AI news and email a summary to john@example.com" }]
+});
+```
+
+
+默认情况下，追踪记录会被记录到名为 `default` 的项目中。要配置自定义项目名称，请参阅 [记录到项目](#log-to-a-project)。
+
+<observability />
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/observability.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for    real-time answers.
+</Tip>

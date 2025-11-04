@@ -1,0 +1,36 @@
+---
+title: Agent Chat UI
+---
+
+import chat_uiPy from '/snippets/oss/ui-py.mdx';
+import chat_uiJS from '/snippets/oss/ui-js.mdx';
+
+
+<chat_uiPy />
+
+
+
+### 连接到您的智能体
+
+Agent Chat UI 可以连接到[本地](/oss/python/langchain/studio#setup-local-langgraph-server)和[已部署的智能体](/oss/python/langchain/deploy)。
+
+启动 Agent Chat UI 后，您需要配置它以连接到您的智能体：
+
+1. **图 ID**：输入您的图名称（在 `langgraph.json` 文件的 `graphs` 下查找）
+2. **部署 URL**：您的 LangGraph 服务器端点（例如，本地开发使用 `http://localhost:2024`，或已部署智能体的 URL）
+3. **LangSmith API 密钥（可选）**：添加您的 LangSmith API 密钥（如果使用本地 LangGraph 服务器则不需要）
+
+配置完成后，Agent Chat UI 将自动获取并显示来自您智能体的所有中断线程。
+
+<Tip>
+  Agent Chat UI 开箱即用地支持渲染工具调用和工具结果消息。要自定义显示的消息，请参阅[隐藏聊天中的消息](https://github.com/langchain-ai/agent-chat-ui?tab=readme-ov-file#hiding-messages-in-the-chat)。
+</Tip>
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/ui.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for    real-time answers.
+</Tip>

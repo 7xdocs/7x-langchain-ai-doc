@@ -1,0 +1,649 @@
+---
+title: Short-term memory
+---
+
+
+
+## 概述
+
+记忆是一个能够记住先前交互信息的系统。对于AI智能体而言，记忆至关重要，因为它能让智能体记住之前的交互、从反馈中学习并适应用户偏好。随着智能体处理更复杂的任务和大量用户交互，这种能力对于效率和用户满意度都变得至关重要。
+
+短期记忆使您的应用程序能够记住单个线程或对话中的先前交互。
+
+<Note>
+    线程在一个会话中组织多次交互，类似于电子邮件将消息分组在单个对话中的方式。
+</Note>
+
+对话历史是最常见的短期记忆形式。长对话对当今的LLM构成了挑战；完整的对话历史可能无法放入LLM的上下文窗口中，从而导致上下文丢失或错误。
+
+即使您的模型支持完整的上下文长度，大多数LLM在长上下文上的表现仍然不佳。它们会被过时或离题的内容"分散注意力"，同时还要承受响应时间变慢和成本增加的困扰。
+
+聊天模型使用[消息](/oss/javascript/langchain/messages)来接受上下文，这些消息包括指令（系统消息）和输入（人类消息）。在聊天应用程序中，消息在人类输入和模型响应之间交替，导致消息列表随着时间的推移而变长。由于上下文窗口是有限的，许多应用程序可以通过使用技术来移除或"遗忘"过时信息而受益。
+
+## 使用方法
+
+要为智能体添加短期记忆（线程级持久化），您需要在创建智能体时指定一个 `checkpointer`。
+
+<Info>
+    LangChain的智能体将短期记忆作为您智能体状态的一部分进行管理。
+
+    通过将这些存储在图的state中，智能体可以访问给定对话的完整上下文，同时保持不同线程之间的分离。
+
+    使用检查点器将状态持久化到数据库（或内存）中，以便可以随时恢复线程。
+
+    短期记忆在调用智能体或完成步骤（如工具调用）时更新，并且在每个步骤开始时读取状态。
+</Info>
+
+
+```ts {highlight={2,4, 9,14}}
+import { createAgent } from "langchain";
+import { MemorySaver } from "@langchain/langgraph";
+
+const checkpointer = new MemorySaver();
+
+const agent = createAgent({
+    model: "anthropic:claude-sonnet-4-5",
+    tools: [],
+    checkpointer,
+});
+
+await agent.invoke(
+    { messages: [{ role: "user", "content: "hi! i am Bob" }] },
+    { configurable: { thread_id: "1" } }
+);
+```
+
+
+### 在生产环境中
+
+在生产环境中，使用由数据库支持的检查点器：
+
+
+```ts
+import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
+
+const DB_URI = "postgresql://postgres:postgres@localhost:5442/postgres?sslmode=disable";
+const checkpointer = PostgresSaver.fromConnString(DB_URI);
+```
+
+
+
+## 自定义智能体记忆
+
+默认情况下，智能体使用 @[`AgentState`] 来管理短期记忆，特别是通过 `messages` 键管理对话历史。
+
+您可以扩展 @[`AgentState`] 来添加额外的字段。自定义状态模式通过 @[`state_schema`] 参数传递给 @[`create_agent`]。
+
+
+```typescript
+import * as z from "zod";
+import { createAgent, createMiddleware } from "langchain";
+import { MessagesZodState, MemorySaver } from "@langchain/langgraph";
+
+const customStateSchema = z.object({  // [!code highlight]
+    messages: MessagesZodState.shape.messages,  // [!code highlight]
+    userId: z.string(),  // [!code highlight]
+    preferences: z.record(z.string(), z.any()),  // [!code highlight]
+});  // [!code highlight]
+
+const stateExtensionMiddleware = createMiddleware({
+    name: "StateExtension",
+    stateSchema: customStateSchema,  // [!code highlight]
+});
+
+const checkpointer = new MemorySaver();
+const agent = createAgent({
+    model: "openai:gpt-5",
+    tools: [],
+    middleware: [stateExtensionMiddleware] as const,  // [!code highlight]
+    checkpointer,
+});
+
+// Custom state can be passed in invoke
+const result = await agent.invoke({
+    messages: [{ role: "user", "content": "Hello" }],
+    userId: "user_123",  // [!code highlight]
+    preferences: { theme: "dark" },  // [!code highlight]
+});
+```
+
+
+## 常见模式
+
+启用[短期记忆](#add-short-term-memory)后，长对话可能会超过LLM的上下文窗口。常见的解决方案有：
+
+<CardGroup cols={2}>
+    <Card title="修剪消息" icon="scissors" href="#trim-messages" arrow>
+        移除最先或最后N条消息（在调用LLM之前）
+    </Card>
+    <Card title="删除消息" icon="trash" href="#delete-messages" arrow>
+        从LangGraph状态中永久删除消息
+    </Card>
+    <Card title="总结消息" icon="layer-group" href="#summarize-messages" arrow>
+        总结历史中较早的消息并用摘要替换它们
+    </Card>
+    <Card title="自定义策略" icon="gears">
+        自定义策略（例如，消息过滤等）
+    </Card>
+</CardGroup>
+
+这允许智能体跟踪对话而不超过LLM的上下文窗口。
+
+### 修剪消息
+
+大多数LLM有一个最大支持的上下文窗口（以令牌数计）。
+
+
+决定何时截断消息的一种方法是计算消息历史中的令牌数，并在接近该限制时进行截断。如果您使用LangChain，可以使用修剪消息工具并指定要从列表中保留的令牌数量，以及用于处理边界的`strategy`（例如，保留最后`maxTokens`）。
+
+
+
+
+要在智能体中修剪消息历史，请使用 `stateModifier` 和 [`trimMessages`](https://js.langchain.com/docs/how_to/trim_messages/) 函数：
+
+```typescript
+import {
+    createAgent,
+    trimMessages,
+    type AgentState,
+} from "langchain";
+import { MemorySaver } from "@langchain/langgraph";
+
+// This function will be called every time before the node that calls LLM
+const stateModifier = async (state: AgentState) => {
+    return {
+        messages: await trimMessages(state.messages, {
+        strategy: "last",
+        maxTokens: 384,
+        startOn: "human",
+        endOn: ["human", "tool"],
+        tokenCounter: (msgs) => msgs.length,
+        }),
+    };
+};
+
+const checkpointer = new MemorySaver();
+const agent = createAgent({
+    model: "openai:gpt-5",
+    tools: [],
+    preModelHook: stateModifier,
+    checkpointer,
+});
+```
+
+
+### 删除消息
+
+您可以从图状态中删除消息来管理消息历史。
+
+当您想要移除特定消息或清除整个消息历史时，这非常有用。
+
+
+
+要从图状态中删除消息，您可以使用 `RemoveMessage`。要使 `RemoveMessage` 工作，您需要使用带有 [`messagesStateReducer`](https://langchain-ai.github.io/langgraphjs/reference/functions/langgraph.messagesStateReducer.html) [reducer](/oss/javascript/langchain/graph-api#reducers) 的状态键，例如 `MessagesZodState`。
+
+要移除特定消息：
+
+```typescript
+import { RemoveMessage } from "@langchain/core/messages";
+
+const deleteMessages = (state) => {
+    const messages = state.messages;
+    if (messages.length > 2) {
+        // remove the earliest two messages
+        return {
+        messages: messages
+            .slice(0, 2)
+            .map((m) => new RemoveMessage({ id: m.id })),
+        };
+    }
+};
+```
+
+
+<Warning>
+    删除消息时，**请确保**生成的消息历史是有效的。检查您使用的LLM提供商的限制。例如：
+
+    * 一些提供商期望消息历史以 `user` 消息开始
+    * 大多数提供商要求带有工具调用的 `assistant` 消息后面跟着相应的 `tool` 结果消息。
+</Warning>
+
+
+
+```typescript
+import { RemoveMessage } from "@langchain/core/messages";
+import { AgentState, createAgent } from "langchain";
+import { MemorySaver } from "@langchain/langgraph";
+
+const deleteMessages = (state: AgentState) => {
+    const messages = state.messages;
+    if (messages.length > 2) {
+        // remove the earliest two messages
+        return {
+        messages: messages
+            .slice(0, 2)
+            .map((m) => new RemoveMessage({ id: m.id! })),
+        };
+    }
+    return {};
+};
+
+const agent = createAgent({
+    model: "openai:gpt-5-nano",
+    tools: [],
+    prompt: "Please be concise and to the point.",
+    postModelHook: deleteMessages,
+    checkpointer: new MemorySaver(),
+});
+
+const config = { configurable: { thread_id: "1" } };
+
+const streamA = await agent.stream(
+    { messages: [{ role: "user", "content": "hi! I'm bob" }] },
+    { ...config, streamMode: "values" }
+);
+for await (const event of streamA) {
+    const messageDetails = event.messages.map((message) => [
+        message.getType(),
+        message.content,
+    ]);
+    console.log(messageDetails);
+}
+
+const streamB = await agent.stream(
+    {
+        messages: [{ role: "user", "content": "what's my name?" }],
+    },
+    { ...config, streamMode: "values" }
+);
+for await (const event of streamB) {
+    const messageDetails = event.messages.map((message) => [
+        message.getType(),
+        message.content,
+    ]);
+    console.log(messageDetails);
+}
+```
+
+```
+[['human', "hi! I'm bob"]]
+[['human', "hi! I'm bob"], ['ai', 'Hi Bob! How are you doing today? Is there anything I can help you with?']]
+[['human', "hi! I'm bob"], ['ai', 'Hi Bob! How are you doing today? Is there anything I can help you with?'], ['human', "what's my name?"]]
+[['human', "hi! I'm bob"], ['ai', 'Hi Bob! How are you doing today? Is there anything I can help you with?'], ['human', "what's my name?"], ['ai', 'Your name is Bob.']]
+[['human', "what's my name?"], ['ai', 'Your name is Bob.']]
+```
+
+
+### 总结消息
+
+如上所示，修剪或移除消息的问题在于，您可能会因为删减消息队列而丢失信息。
+因此，一些应用程序受益于使用聊天模型总结消息历史的更复杂方法。
+
+![](/oss/images/summary.png)
+
+
+
+要在智能体中总结消息历史，请使用内置的 [`summarizationMiddleware`](/oss/javascript/langchain/middleware#summarization)：
+
+```typescript
+import { createAgent, summarizationMiddleware } from "langchain";
+import { MemorySaver } from "@langchain/langgraph";
+
+const checkpointer = new MemorySaver();
+
+const agent = createAgent({
+  model: "openai:gpt-4o",
+  tools: [],
+  middleware: [
+    summarizationMiddleware({
+      model: "openai:gpt-4o-mini",
+      maxTokensBeforeSummary: 4000,
+      messagesToKeep: 20,
+    }),
+  ],
+  checkpointer,
+});
+
+const config = { configurable: { thread_id: "1" } };
+await agent.invoke({ messages: "hi, my name is bob" }, config);
+await agent.invoke({ messages: "write a short poem about cats" }, config);
+await agent.invoke({ messages: "now do the same but for dogs" }, config);
+const finalResponse = await agent.invoke({ messages: "what's my name?" }, config);
+
+console.log(finalResponse.messages.at(-1)?.content);
+// Your name is Bob!
+```
+
+有关更多配置选项，请参见 [`summarizationMiddleware`](/oss/javascript/langchain/middleware#summarization)。
+
+
+## 访问记忆
+
+您可以通过多种方式访问和修改智能体的短期记忆（状态）：
+
+### 工具
+
+#### 在工具中读取短期记忆
+
+使用 `ToolRuntime` 参数在工具中访问短期记忆（状态）。
+
+`tool_runtime` 参数对工具签名是隐藏的（因此模型看不到它），但工具可以通过它访问状态。
+
+
+```typescript
+import * as z from "zod";
+import { createAgent, tool } from "langchain";
+
+const stateSchema = z.object({
+    userId: z.string(),
+});
+
+const getUserInfo = tool(
+    async (_, config) => {
+        const userId = config.context?.userId;
+        return { userId };
+    },
+    {
+        name: "get_user_info",
+        description: "Get user info",
+        schema: z.object({}),
+    }
+);
+
+const agent = createAgent({
+    model: "openai:gpt-5-nano",
+    tools: [getUserInfo],
+    stateSchema,
+});
+
+const result = await agent.invoke(
+    {
+        messages: [{ role: "user", "content": "what's my name?" }],
+    },
+    {
+        context: {
+        userId: "user_123",
+        },
+    }
+);
+
+console.log(result.messages.at(-1)?.content);
+// Outputs: "User is John Smith."
+```
+
+
+#### 从工具写入短期记忆
+
+要在执行期间修改智能体的短期记忆（状态），您可以直接从工具返回状态更新。
+
+这对于持久化中间结果或使信息对后续工具或提示可访问非常有用。
+
+
+
+```typescript
+import * as z from "zod";
+import { tool, createAgent } from "langchain";
+import { MessagesZodState, Command } from "@langchain/langgraph";
+
+const CustomState = z.object({
+    messages: MessagesZodState.shape.messages,
+    userName: z.string().optional(),
+});
+
+const updateUserInfo = tool(
+    async (_, config) => {
+        const userId = config.context?.userId;
+        const name = userId === "user_123" ? "John Smith" : "Unknown user";
+        return new Command({
+        update: {
+            userName: name,
+            // update the message history
+            messages: [
+            {
+                role: "tool",
+                content: "Successfully looked up user information",
+                tool_call_id: config.toolCall?.id,
+            },
+            ],
+        },
+        });
+    },
+    {
+        name: "update_user_info",
+        description: "Look up and update user info.",
+        schema: z.object({}),
+    }
+);
+
+const greet = tool(
+    async (_, config) => {
+        const userName = config.context?.userName;
+        return `Hello ${userName}!`;
+    },
+    {
+        name: "greet",
+        description: "Use this to greet the user once you found their info.",
+        schema: z.object({}),
+    }
+);
+
+const agent = createAgent({
+    model,
+    tools: [updateUserInfo, greet],
+    stateSchema: CustomState,
+});
+
+await agent.invoke(
+    { messages: [{ role: "user", "content": "greet the user" }] },
+    { context: { userId: "user_123" } }
+);
+```
+
+
+### 提示
+
+在中间件中访问短期记忆（状态），以基于对话历史或自定义状态字段创建动态提示。
+
+
+```typescript
+import * as z from "zod";
+import { createAgent, tool, SystemMessage } from "langchain";
+
+const contextSchema = z.object({
+    userName: z.string(),
+});
+
+const getWeather = tool(
+    async ({ city }, config) => {
+        return `The weather in ${city} is always sunny!`;
+    },
+    {
+        name: "get_weather",
+        description: "Get user info",
+        schema: z.object({
+        city: z.string(),
+        }),
+    }
+);
+
+const agent = createAgent({
+    model: "openai:gpt-5-nano",
+    tools: [getWeather],
+    contextSchema,
+    prompt: (state, config) => {
+        return [
+        new SystemMessage(
+            `You are a helpful assistant. Address the user as ${config.context?.userName}.`
+        ),
+        ...state.messages,
+    },
+});
+
+const result = await agent.invoke(
+    {
+        messages: [{ role: "user", "content": "What is the weather in SF?" }],
+    },
+    {
+        context: {
+        userName: "John Smith",
+        },
+    }
+);
+
+for (const message of result.messages) {
+    console.log(message);
+}
+/**
+ * HumanMessage {
+ *   "content": "What is the weather in SF?",
+ *   // ...
+ * }
+ * AIMessage {
+ *   // ...
+ *   "tool_calls": [
+ *     {
+ *       "name": "get_weather",
+ *       "args": {
+ *         "city": "San Francisco"
+ *       },
+ *       "type": "tool_call",
+ *       "id": "call_tCidbv0apTpQpEWb3O2zQ4Yx"
+ *     }
+ *   ],
+ *   // ...
+ * }
+ * ToolMessage {
+ *   "content": "The weather in San Francisco is always sunny!",
+ *   "tool_call_id": "call_tCidbv0apTpQpEWb3O2zQ4Yx"
+ *   // ...
+ * }
+ * AIMessage {
+ *   "content": "John Smith, here's the latest: The weather in San Francisco is always sunny!\n\nIf you'd like more details (temperature, wind, humidity) or a forecast for the next few days, I can pull that up. What would you like?",
+ *   // ...
+ * }
+ */
+```
+
+
+### 模型调用前
+
+在 @[`@before_model`] 中间件中访问短期记忆（状态），以在模型调用之前处理消息。
+
+
+```mermaid
+%%{
+    init: {
+        "fontFamily": "monospace",
+        "flowchart": {
+        "curve": "basis"
+        },
+        "themeVariables": {"edgeLabelBackground": "transparent"}
+    }
+}%%
+graph TD
+    S(["\_\_start\_\_"])
+    PRE(before_model)
+    MODEL(model)
+    TOOLS(tools)
+    END(["\_\_end\_\_"])
+    S --> PRE
+    PRE --> MODEL
+    MODEL -.-> TOOLS
+    MODEL -.-> END
+    TOOLS --> PRE
+    classDef blueHighlight fill:#0a1c25,stroke:#0a455f,color:#bae6fd;
+    class S blueHighlight;
+    class END blueHighlight;
+```
+
+
+```typescript
+import { RemoveMessage } from "@langchain/core/messages";
+import { createAgent, createMiddleware, trimMessages, type AgentState } from "langchain";
+
+const trimMessageHistory = createMiddleware({
+  name: "TrimMessages",
+  beforeModel: async (state) => {
+    const trimmed = await trimMessages(state.messages, {
+      maxTokens: 384,
+      strategy: "last",
+      startOn: "human",
+      endOn: ["human", "tool"],
+      tokenCounter: (msgs) => msgs.length,
+    });
+    return { messages: trimmed };
+  },
+});
+
+const agent = createAgent({
+    model: "openai:gpt-5-nano",
+    tools: [],
+    middleware: [trimMessageHistory],
+});
+```
+
+
+### 模型调用后
+
+在 @[`@after_model`] 中间件中访问短期记忆（状态），以在模型调用之后处理消息。
+
+```mermaid
+%%{
+    init: {
+        "fontFamily": "monospace",
+        "flowchart": {
+        "curve": "basis"
+        },
+        "themeVariables": {"edgeLabelBackground": "transparent"}
+    }
+}%%
+graph TD
+    S(["\_\_start\_\_"])
+    MODEL(model)
+    POST(after_model)
+    TOOLS(tools)
+    END(["\_\_end\_\_"])
+    S --> MODEL
+    MODEL --> POST
+    POST -.-> END
+    POST -.-> TOOLS
+    TOOLS --> MODEL
+    classDef blueHighlight fill:#0a1c25,stroke:#0a455f,color:#bae6fd;
+    class S blueHighlight;
+    class END blueHighlight;
+    class POST greenHighlight;
+```
+
+
+```typescript
+import { RemoveMessage } from "@langchain/core/messages";
+import { createAgent, createMiddleware, type AgentState } from "langchain";
+
+const validateResponse = createMiddleware({
+  name: "ValidateResponse",
+  afterModel: (state) => {
+    const lastMessage = state.messages.at(-1)?.content;
+    if (typeof lastMessage === "string" && lastMessage.toLowerCase().includes("confidential")) {
+      return {
+        messages: [new RemoveMessage({ id: "all" }), ...state.messages],
+      };
+    }
+    return;
+  },
+});
+
+const agent = createAgent({
+    model: "openai:gpt-5-nano",
+    tools: [],
+    middleware: [validateResponse],
+});
+```
+
+---
+
+<Callout icon="pen-to-square" iconType="regular">
+    [Edit the source of this page on GitHub.](https://github.com/langchain-ai/docs/edit/main/src/oss/langchain/short-term-memory.mdx)
+</Callout>
+<Tip icon="terminal" iconType="regular">
+    [Connect these docs programmatically](/use-these-docs) to Claude, VSCode, and more via MCP for    real-time answers.
+</Tip>
