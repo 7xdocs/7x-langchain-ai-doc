@@ -88,3 +88,8 @@ docs --help
 文档如下：
 
 ```
+
+
+## 部署
+本质上是部署 mintlify 服务，请查看 mintlify 文档。
+https://dashboard.mintlify.com/7x/7x
