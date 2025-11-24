@@ -149,7 +149,7 @@
                     ]
                   },
                   {
-                    "group": "Get started",
+                    "group": "开始",
                     "pages": [
                       "oss/python/langchain/install",
                       "oss/python/langchain/quickstart",
@@ -157,7 +157,7 @@
                     ]
                   },
                   {
-                    "group": "Core components",
+                    "group": "核心组件",
                     "pages": [
                       "oss/python/langchain/agents",
                       "oss/python/langchain/models",
@@ -471,7 +471,7 @@
                     ]
                   },
                   {
-                    "group": "Get started",
+                    "group": "开始",
                     "pages": [
                       "oss/javascript/langchain/install",
                       "oss/javascript/langchain/quickstart",
@@ -492,7 +492,7 @@
                     ]
                   },
                   {
-                    "group": "Advanced usage",
+                    "group": "高级用法",
                     "pages": [
                       "oss/javascript/langchain/guardrails",
                       "oss/javascript/langchain/runtime",
